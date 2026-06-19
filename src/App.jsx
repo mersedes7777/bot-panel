@@ -1,15 +1,18 @@
 import { useState, useEffect } from "react";
 
-// ════════════════════════════════════════
-// АДРЕС ТВОЕГО СЕРВЕРА (Railway)
-const API = "https://web-production-c4310.up.railway.app";
-// ════════════════════════════════════════
+const API = "https://web-production-ca50a.up.railway.app";
 
-const C = { bg:"#0a0e17", card:"#111827", border:"#1f2937", text:"#f9fafb", muted:"#6b7280", accent:"#6366f1", green:"#10b981", red:"#ef4444", yellow:"#f59e0b" };
+// ── Дизайн-токены ──
+const T = {
+  bg: "#0B0D12", surface: "#13161D", surface2: "#1A1E27", line: "#252A35",
+  text: "#F5F7FA", dim: "#8B92A0", faint: "#5A616E",
+  brand: "#6D5EF6", brandSoft: "#6D5EF61A", brand2: "#9D7BFF",
+  green: "#2BD980", red: "#FF5C5C", amber: "#FFB020", cyan: "#3DD6E8",
+};
 
 const STATUS = {
-  new:{l:"Новый",c:"#3b82f6"}, accepted:{l:"Принят",c:"#8b5cf6"}, cooking:{l:"Готовится",c:"#f59e0b"},
-  delivering:{l:"Доставка",c:"#06b6d4"}, done:{l:"Выполнен",c:"#10b981"}, rejected:{l:"Отклонён",c:"#ef4444"},
+  new:{l:"Новый",c:"#5B8DEF"}, accepted:{l:"Принят",c:"#9D7BFF"}, cooking:{l:"Готовится",c:"#FFB020"},
+  delivering:{l:"В пути",c:"#3DD6E8"}, done:{l:"Выполнен",c:"#2BD980"}, rejected:{l:"Отклонён",c:"#FF5C5C"},
 };
 const TOKEN_PRICE = { deepseek:0.14, "claude-haiku":1.0, "claude-sonnet":3.0 };
 
@@ -20,322 +23,370 @@ export default function App() {
   const [loginInput, setLoginInput] = useState("");
   const [passInput, setPassInput] = useState("");
   const [loginErr, setLoginErr] = useState("");
+  const [busy, setBusy] = useState(false);
   const [page, setPage] = useState("overview");
   const [clients, setClients] = useState([]);
   const [orders, setOrders] = useState([]);
   const [menu, setMenu] = useState([]);
   const [selected, setSelected] = useState(null);
   const [tab, setTab] = useState("info");
-  const [flash, setFlash] = useState("");
+  const [toast, setToast] = useState("");
   const [orderFilter, setOrderFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
   const [mob, setMob] = useState(false);
 
-  useEffect(() => { const f = () => setMob(window.innerWidth < 768); f(); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
+  useEffect(() => { const f=()=>setMob(window.innerWidth<860); f(); addEventListener("resize",f); return()=>removeEventListener("resize",f); }, []);
 
-  const card = { background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: mob?16:20 };
-  const input = { background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "11px 12px", color: C.text, fontSize: 14, outline: "none", width: "100%", boxSizing: "border-box" };
-  const btn = (v="p") => ({ padding: "10px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, background: v==="p"?C.accent:v==="g"?C.green:v==="r"?"#ef444422":"#1f2937", color: v==="r"?C.red:"#fff" });
-  const fl = (m) => { setFlash(m); setTimeout(() => setFlash(""), 2500); };
+  const notify = (m) => { setToast(m); setTimeout(()=>setToast(""), 2600); };
 
-  // ── API запросы ──
-  const apiGet = async (path) => {
-    const r = await fetch(API + path, { headers: { "X-Admin-Password": pwd } });
-    if (!r.ok) throw new Error("api error");
-    return r.json();
-  };
-  const apiPost = async (path, body) => {
-    const r = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json", "X-Admin-Password": pwd }, body: JSON.stringify(body) });
-    if (!r.ok) throw new Error("api error");
-    return r.json();
-  };
+  // ── API ──
+  const apiGet = async (p) => { const r = await fetch(API+p,{headers:{"X-Admin-Password":pwd}}); if(!r.ok) throw 0; return r.json(); };
+  const apiPost = async (p,b) => { const r = await fetch(API+p,{method:"POST",headers:{"Content-Type":"application/json","X-Admin-Password":pwd},body:JSON.stringify(b)}); if(!r.ok) throw 0; return r.json(); };
 
-  // ── Логин ──
   const doLogin = async () => {
-    setLoginErr("");
+    setLoginErr(""); setBusy(true);
     try {
-      const r = await fetch(API + "/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: loginInput, password: passInput }) });
+      const r = await fetch(API+"/api/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({login:loginInput,password:passInput})});
       if (r.ok) {
-        const data = await r.json();
-        const headerToken = loginInput ? `${loginInput}:${passInput}` : passInput;
-        setPwd(headerToken);
-        setRole(data.role || "admin");
-        localStorage.setItem("adminPwd", headerToken);
-        localStorage.setItem("role", data.role || "admin");
+        const d = await r.json();
+        const tok = loginInput ? `${loginInput}:${passInput}` : passInput;
+        setPwd(tok); setRole(d.role||"admin");
+        localStorage.setItem("adminPwd",tok); localStorage.setItem("role",d.role||"admin");
         setLogged(true);
-      } else {
-        setLoginErr("Неверный логин или пароль");
-      }
-    } catch {
-      setLoginErr("Сервер недоступен");
-    }
+      } else setLoginErr("Неверный логин или пароль");
+    } catch { setLoginErr("Сервер недоступен"); }
+    setBusy(false);
   };
 
-  // авто-логин если токен сохранён (проверяем что данные грузятся)
-  useEffect(() => {
-    if (pwd && !logged) {
-      fetch(API + "/api/clients", { headers: { "X-Admin-Password": pwd } })
-        .then(r => { if (r.ok) setLogged(true); });
-    }
-  }, []);
+  useEffect(() => { if(pwd && !logged) fetch(API+"/api/clients",{headers:{"X-Admin-Password":pwd}}).then(r=>{if(r.ok)setLogged(true);}); }, []);
 
-  // ── Загрузка данных ──
   const loadData = async () => {
     setLoading(true);
-    try {
-      const [cl, or] = await Promise.all([apiGet("/api/clients"), apiGet("/api/orders")]);
-      setClients(cl.clients || []);
-      setOrders(or.orders || []);
-    } catch { fl("Ошибка загрузки"); }
+    try { const [c,o]=await Promise.all([apiGet("/api/clients"),apiGet("/api/orders")]); setClients(c.clients||[]); setOrders(o.orders||[]); }
+    catch { notify("Не удалось загрузить данные"); }
     setLoading(false);
   };
+  useEffect(() => { if(logged) loadData(); }, [logged]);
+  const loadMenu = async (id) => { try{ const r=await apiGet("/api/menu/"+id); setMenu(r.menu||[]); }catch{ setMenu([]); } };
 
-  useEffect(() => { if (logged) loadData(); }, [logged]);
+  const tokenCost = (c) => ((c.tokens||0)/1e6*(TOKEN_PRICE[c.config?.ai_model]||0.14));
+  const income = clients.filter(c=>c.status==="active").reduce((s,c)=>s+(c.plan_price||0),0);
+  const cost = clients.reduce((s,c)=>s+tokenCost(c),0);
+  const newOrders = orders.filter(o=>o.status==="new").length;
+  const isAdmin = role==="admin";
 
-  const loadMenu = async (clientId) => {
-    try { const r = await apiGet("/api/menu/" + clientId); setMenu(r.menu || []); } catch { setMenu([]); }
+  // ── Примитивы ──
+  const Btn = ({children,onClick,kind="primary",size="md",style={},...p}) => {
+    const sizes={sm:{padding:"7px 13px",fontSize:12.5},md:{padding:"10px 18px",fontSize:13.5},lg:{padding:"13px 22px",fontSize:15}};
+    const kinds={
+      primary:{background:`linear-gradient(135deg,${T.brand},${T.brand2})`,color:"#fff",boxShadow:`0 4px 16px ${T.brand}40`},
+      ghost:{background:T.surface2,color:T.text,border:`1px solid ${T.line}`},
+      danger:{background:"#FF5C5C18",color:T.red,border:"1px solid #FF5C5C30"},
+      subtle:{background:"transparent",color:T.dim},
+    };
+    return <button onClick={onClick} style={{borderRadius:11,border:"none",cursor:"pointer",fontWeight:650,letterSpacing:.1,transition:"transform .15s, box-shadow .2s, filter .2s",...sizes[size],...kinds[kind],...style}}
+      onMouseDown={e=>e.currentTarget.style.transform="scale(.97)"} onMouseUp={e=>e.currentTarget.style.transform="scale(1)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"} {...p}>{children}</button>;
   };
+  const Card = ({children,style={},hover=false,...p}) => (
+    <div style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:18,padding:mob?18:22,transition:"border-color .2s, transform .2s",...style}}
+      onMouseEnter={hover?e=>{e.currentTarget.style.borderColor=T.brand+"55";}:undefined}
+      onMouseLeave={hover?e=>{e.currentTarget.style.borderColor=T.line;}:undefined} {...p}>{children}</div>
+  );
+  const inp = {background:T.bg,border:`1px solid ${T.line}`,borderRadius:11,padding:"12px 14px",color:T.text,fontSize:14,outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color .2s"};
+  const Field = (p) => <input {...p} style={{...inp,...(p.style||{})}} onFocus={e=>e.target.style.borderColor=T.brand} onBlur={e=>e.target.style.borderColor=T.line}/>;
 
-  const tokenCost = (c) => ((c.tokens || 0) / 1e6 * (TOKEN_PRICE[c.config?.ai_model] || 0.14));
-  const totalIncome = clients.filter(c => c.status === "active").reduce((s, c) => s + (c.plan_price || 0), 0);
-  const totalCost = clients.reduce((s, c) => s + tokenCost(c), 0);
-  const newOrders = orders.filter(o => o.status === "new").length;
+  const fontStack = "'Inter','SF Pro Display',-apple-system,sans-serif";
 
-  // ── ЛОГИН ЭКРАН ──
+  // ── ЛОГИН ──
   if (!logged) return (
-    <div style={{ minHeight: "100vh", background: C.bg, display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Inter',sans-serif", padding: 20 }}>
-      <div style={{ ...card, width: "100%", maxWidth: 360, textAlign: "center" }}>
-        <div style={{ fontSize: 40, marginBottom: 8 }}>🤖</div>
-        <h1 style={{ color: C.text, fontSize: 22, fontWeight: 800, margin: "0 0 4px" }}>Bot<span style={{ color: C.accent }}>SaaS</span></h1>
-        <p style={{ color: C.muted, fontSize: 13, margin: "0 0 24px" }}>Панель управления</p>
-        <input type="text" placeholder="Логин" value={loginInput} onChange={e => setLoginInput(e.target.value)} onKeyDown={e => e.key === "Enter" && doLogin()} style={{ ...input, marginBottom: 10, textAlign: "center" }} />
-        <input type="password" placeholder="Пароль" value={passInput} onChange={e => setPassInput(e.target.value)} onKeyDown={e => e.key === "Enter" && doLogin()} style={{ ...input, marginBottom: 12, textAlign: "center" }} />
-        {loginErr && <div style={{ color: C.red, fontSize: 13, marginBottom: 12 }}>{loginErr}</div>}
-        <button onClick={doLogin} style={{ ...btn(), width: "100%" }}>Войти</button>
-      </div>
+    <div style={{minHeight:"100vh",background:T.bg,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:fontStack,padding:20,position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",width:600,height:600,borderRadius:"50%",background:`radial-gradient(circle,${T.brand}22,transparent 70%)`,top:-200,right:-150,filter:"blur(40px)"}}/>
+      <div style={{position:"absolute",width:500,height:500,borderRadius:"50%",background:`radial-gradient(circle,${T.cyan}14,transparent 70%)`,bottom:-180,left:-120,filter:"blur(40px)"}}/>
+      <Card style={{width:"100%",maxWidth:380,padding:36,position:"relative",zIndex:1,boxShadow:"0 30px 80px rgba(0,0,0,.5)"}}>
+        <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:6}}>
+          <div style={{width:38,height:38,borderRadius:11,background:`linear-gradient(135deg,${T.brand},${T.brand2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,boxShadow:`0 6px 18px ${T.brand}50`}}>◆</div>
+          <div style={{fontSize:21,fontWeight:800,letterSpacing:-.5}}>Aimuna</div>
+        </div>
+        <p style={{color:T.dim,fontSize:13.5,margin:"0 0 28px",lineHeight:1.5}}>Панель управления ботами</p>
+        <div style={{marginBottom:11}}><Field placeholder="Логин" value={loginInput} onChange={e=>setLoginInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doLogin()}/></div>
+        <div style={{marginBottom:18}}><Field type="password" placeholder="Пароль" value={passInput} onChange={e=>setPassInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doLogin()}/></div>
+        {loginErr && <div style={{color:T.red,fontSize:13,marginBottom:16,padding:"9px 12px",background:"#FF5C5C12",borderRadius:9,border:"1px solid #FF5C5C25"}}>{loginErr}</div>}
+        <Btn onClick={doLogin} size="lg" style={{width:"100%",opacity:busy?.7:1}}>{busy?"Входим…":"Войти"}</Btn>
+      </Card>
     </div>
   );
 
   const NAV = [
-    { id:"overview", icon:"▦", label:"Обзор" },
-    { id:"orders", icon:"🧾", label:"Заказы", badge:newOrders },
-    { id:"clients", icon:"◈", label:"Клиенты" },
-    { id:"stats", icon:"📊", label:"Статистика" },
+    {id:"overview",ic:"◫",l:"Обзор"},
+    {id:"orders",ic:"☰",l:"Заказы",badge:newOrders},
+    {id:"clients",ic:"◆",l:isAdmin?"Клиенты":"Заведение"},
+    {id:"stats",ic:"◷",l:"Статистика"},
   ];
 
-  const content = (<>
-    {flash && <div style={{ position:"fixed", top:20, right:20, left:mob?20:"auto", background:C.green, color:"#fff", padding:"12px 18px", borderRadius:10, fontSize:13, fontWeight:600, zIndex:300, textAlign:"center" }}>{flash}</div>}
-    {loading && <div style={{ position:"fixed", top:20, left:"50%", transform:"translateX(-50%)", background:C.accent, color:"#fff", padding:"8px 16px", borderRadius:10, fontSize:12, zIndex:300 }}>Загрузка…</div>}
+  const Stat = ({label,value,accent,sub}) => (
+    <Card hover style={{position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${accent},transparent)`}}/>
+      <div style={{fontSize:11.5,color:T.dim,fontWeight:600,letterSpacing:.4,textTransform:"uppercase",marginBottom:9}}>{label}</div>
+      <div style={{fontSize:mob?26:32,fontWeight:800,letterSpacing:-1,lineHeight:1}}>{value}</div>
+      {sub && <div style={{fontSize:12,color:T.faint,marginTop:6}}>{sub}</div>}
+    </Card>
+  );
 
-    {/* ОБЗОР */}
-    {page === "overview" && <div>
-      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-        <div><h1 style={{ fontSize:22, fontWeight:700, margin:"0 0 4px" }}>Обзор</h1><p style={{ color:C.muted, fontSize:14, margin:0 }}>Живые данные</p></div>
-        <div style={{ display:"flex", gap:8 }}>
-          <button style={btn("x")} onClick={loadData}>🔄 Обновить</button>
-          {role==="admin" && <button style={btn()} onClick={async()=>{
-            fl("Переподключаю всех ботов...");
-            try{ const r=await apiPost("/api/reconnect-webhook",{base_url:API});
-              const ok=r.results?.filter(x=>x.ok).length||0;
-              fl(`✅ Переподключено ботов: ${ok}/${r.results?.length||0}`); }
-            catch{ fl("Ошибка"); }
-          }}>🔗 Переподключить ботов</button>}
+  const Pill = ({s}) => { const st=STATUS[s]||STATUS.new; return <span style={{fontSize:11.5,fontWeight:650,padding:"4px 11px",borderRadius:20,color:st.c,background:st.c+"1A",border:`1px solid ${st.c}30`,whiteSpace:"nowrap"}}>{st.l}</span>; };
+
+  // ── КОНТЕНТ ──
+  const Body = (
+    <>
+      {toast && <div style={{position:"fixed",top:22,right:mob?16:28,left:mob?16:"auto",zIndex:400,background:T.surface2,color:T.text,padding:"13px 20px",borderRadius:13,fontSize:13.5,fontWeight:600,border:`1px solid ${T.line}`,boxShadow:"0 14px 40px rgba(0,0,0,.45)",display:"flex",alignItems:"center",gap:9,animation:"sl .3s ease"}}>
+        <span style={{color:T.green}}>●</span>{toast}</div>}
+      {loading && <div style={{position:"fixed",top:22,left:"50%",transform:"translateX(-50%)",zIndex:400,background:T.brand,color:"#fff",padding:"8px 18px",borderRadius:20,fontSize:12.5,fontWeight:600}}>Загрузка…</div>}
+
+      {/* ОБЗОР */}
+      {page==="overview" && <div>
+        <Header title="Обзор" sub={isAdmin?"Сводка по всем заведениям":"Сводка по вашему заведению"}
+          right={<div style={{display:"flex",gap:9}}>
+            <Btn kind="ghost" size="md" onClick={loadData}>Обновить</Btn>
+            {isAdmin && <Btn size="md" onClick={async()=>{ notify("Переподключаю ботов…"); try{ const r=await apiPost("/api/reconnect-webhook",{base_url:API}); notify(`Подключено: ${r.results?.filter(x=>x.ok).length||0}/${r.results?.length||0}`); }catch{ notify("Ошибка"); } }}>Переподключить ботов</Btn>}
+          </div>}/>
+        <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:18}}>
+          {isAdmin ? <>
+            <Stat label="Доход / мес" value={`$${income}`} accent={T.brand}/>
+            <Stat label="Расход AI" value={`$${cost.toFixed(2)}`} accent={T.red}/>
+            <Stat label="Прибыль" value={`$${(income-cost).toFixed(2)}`} accent={T.green}/>
+            <Stat label="Заведений" value={clients.length} accent={T.amber}/>
+          </> : <>
+            <Stat label="Заказов" value={clients.reduce((s,c)=>s+(c.orders_count||0),0)} accent={T.green}/>
+            <Stat label="Диалогов" value={clients.reduce((s,c)=>s+(c.dialogs_count||0),0)} accent={T.brand}/>
+            <Stat label="Новых" value={newOrders} accent={T.amber}/>
+            <Stat label="В работе" value={orders.filter(o=>["cooking","delivering","accepted"].includes(o.status)).length} accent={T.cyan}/>
+          </>}
         </div>
-      </div>
-      <div style={{ display:"grid", gridTemplateColumns:mob?"1fr 1fr":"repeat(4,1fr)", gap:12, marginBottom:20 }}>
-        {[{l:"Доход/мес",v:`$${totalIncome}`,c:C.accent},{l:"Расход AI",v:`$${totalCost.toFixed(2)}`,c:C.red},{l:"Прибыль",v:`$${(totalIncome-totalCost).toFixed(2)}`,c:C.green},{l:"Клиентов",v:clients.length,c:C.yellow}].map(s=>(
-          <div key={s.l} style={{ ...card, borderTop:`3px solid ${s.c}` }}><div style={{ fontSize:11, color:s.c, fontWeight:600, textTransform:"uppercase", marginBottom:6 }}>{s.l}</div><div style={{ fontSize:mob?22:26, fontWeight:800 }}>{s.v}</div></div>))}
-      </div>
-      <div style={card}>
-        <div style={{ fontSize:14, fontWeight:600, marginBottom:14 }}>Последние заказы</div>
-        {orders.length === 0 && <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:20 }}>Заказов пока нет</div>}
-        {orders.slice(0,6).map(o => { const st = STATUS[o.status] || STATUS.new; return (
-          <div key={o.id} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:`1px solid ${C.border}`, gap:8 }}>
-            <div style={{ minWidth:0 }}><span style={{ fontWeight:600 }}>№{o.order_number}</span> <span style={{ color:C.muted, fontSize:13 }}>{(o.items_text||"").split("\n")[0]}</span></div>
-            <span style={{ fontSize:11, fontWeight:600, padding:"3px 9px", borderRadius:20, color:st.c, background:st.c+"22", whiteSpace:"nowrap" }}>{st.l}</span></div>);})}
-      </div>
-    </div>}
-
-    {/* ЗАКАЗЫ */}
-    {page === "orders" && <div>
-      <h1 style={{ fontSize:22, fontWeight:700, margin:"0 0 4px" }}>Заказы</h1>
-      <p style={{ color:C.muted, fontSize:14, margin:"0 0 16px" }}>Реальные заказы из ботов</p>
-      <div style={{ display:"flex", gap:8, marginBottom:20, flexWrap:"wrap", overflowX:"auto" }}>
-        {["all","new","accepted","cooking","delivering","done","rejected"].map(f=>(
-          <button key={f} onClick={()=>setOrderFilter(f)} style={{ ...btn(orderFilter===f?"p":"x"), fontSize:12, padding:"7px 12px", whiteSpace:"nowrap" }}>{f==="all"?"Все":STATUS[f].l}</button>))}
-      </div>
-      <div style={{ display:"grid", gap:12 }}>
-        {orders.filter(o=>orderFilter==="all"||o.status===orderFilter).map(o=>{ const st=STATUS[o.status]||STATUS.new; return(
-          <div key={o.id} style={{ ...card, borderLeft:`3px solid ${st.c}` }}>
-            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8 }}>
-              <span style={{ fontWeight:700, fontSize:15 }}>Заказ №{o.order_number} <span style={{ color:C.muted, fontWeight:400, fontSize:13 }}>{o.clients?.name}</span></span>
-              <span style={{ fontSize:11, fontWeight:600, padding:"3px 10px", borderRadius:20, color:st.c, background:st.c+"22" }}>{st.l}</span></div>
-            <div style={{ fontSize:13, color:"#d1d5db", whiteSpace:"pre-wrap", lineHeight:1.6 }}>{o.items_text}</div>
-            <div style={{ display:"flex", gap:6, marginTop:12, flexWrap:"wrap" }}>
-              {Object.keys(STATUS).map(s=>(<button key={s} onClick={async()=>{ await apiPost("/api/update-order-status",{order_id:o.id,status:s}); setOrders(orders.map(x=>x.id===o.id?{...x,status:s}:x)); fl(`Заказ №${o.order_number}: ${STATUS[s].l}`); }}
-                style={{ ...btn(o.status===s?"p":"x"), fontSize:11, padding:"5px 10px" }}>{STATUS[s].l}</button>))}
+        <Card>
+          <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Последние заказы</div>
+          <div style={{fontSize:12.5,color:T.dim,marginBottom:16}}>Свежие обращения клиентов</div>
+          {orders.length===0 && <Empty text="Заказов пока нет"/>}
+          {orders.slice(0,6).map(o=>(
+            <div key={o.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"13px 0",borderBottom:`1px solid ${T.line}`,gap:10}}>
+              <div style={{minWidth:0,display:"flex",alignItems:"center",gap:11}}>
+                <div style={{width:34,height:34,borderRadius:9,background:T.surface2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:T.dim,flexShrink:0}}>№{o.order_number}</div>
+                <div style={{minWidth:0}}>
+                  <div style={{fontSize:13.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{(o.items_text||"").split("\n")[0]||"Заказ"}</div>
+                  {isAdmin && <div style={{fontSize:11.5,color:T.faint}}>{o.clients?.name}</div>}
+                </div>
+              </div>
+              <Pill s={o.status}/>
             </div>
-          </div>);})}
-      </div>
-    </div>}
+          ))}
+        </Card>
+      </div>}
 
-    {/* КЛИЕНТЫ */}
-    {page === "clients" && !selected && <div>
-      <h1 style={{ fontSize:22, fontWeight:700, margin:"0 0 4px" }}>Клиенты</h1>
-      <p style={{ color:C.muted, fontSize:14, margin:"0 0 20px" }}>Заведения из базы</p>
-      <div style={{ display:"grid", gap:12 }}>
-        {clients.map(c=>(<div key={c.id} style={{ ...card, cursor:"pointer" }} onClick={()=>{ setSelected(c); setTab("info"); loadMenu(c.id); }}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", gap:10 }}>
-            <div style={{ display:"flex", gap:12, alignItems:"center", minWidth:0 }}>
-              <div style={{ width:44, height:44, borderRadius:10, background:"#1f2937", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{c.emoji}</div>
-              <div style={{ minWidth:0 }}><div style={{ fontSize:15, fontWeight:700 }}>{c.name}</div>
-                <div style={{ fontSize:12, color:C.muted }}>{c.city} · {c.plan} · {c.config?.ai_model||"—"}</div></div>
-            </div>
-            <div style={{ display:"flex", gap:16, textAlign:"right", flexShrink:0 }}>
-              <div><div style={{ fontWeight:700 }}>{c.dialogs_count}</div><div style={{ fontSize:11, color:C.muted }}>диал.</div></div>
-              <div><div style={{ fontWeight:700, color:C.green }}>{c.orders_count}</div><div style={{ fontSize:11, color:C.muted }}>зак.</div></div>
-            </div>
-          </div></div>))}
-      </div>
-    </div>}
-
-    {/* ДЕТАЛИ КЛИЕНТА */}
-    {page === "clients" && selected && (()=>{ const c=selected;
-      const TABS=[{id:"info",l:"Основное"},{id:"menu",l:"Меню"},{id:"bot",l:"Промпт"},{id:"channel",l:"Подключение"}];
-      return(<div>
-        <button onClick={()=>setSelected(null)} style={{ ...btn("x"), marginBottom:16 }}>← Назад</button>
-        <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
-          <div style={{ width:48, height:48, borderRadius:12, background:"#1f2937", display:"flex", alignItems:"center", justifyContent:"center", fontSize:24 }}>{c.emoji}</div>
-          <h1 style={{ fontSize:20, fontWeight:700, margin:0 }}>{c.name}</h1></div>
-        <div style={{ display:"flex", gap:4, marginBottom:20, borderBottom:`1px solid ${C.border}`, overflowX:"auto" }}>
-          {TABS.map(t=>(<div key={t.id} onClick={()=>setTab(t.id)} style={{ padding:"9px 14px", cursor:"pointer", fontSize:13, fontWeight:tab===t.id?600:400, color:tab===t.id?C.accent:C.muted, borderBottom:`2px solid ${tab===t.id?C.accent:"transparent"}`, marginBottom:-1, whiteSpace:"nowrap" }}>{t.l}</div>))}
+      {/* ЗАКАЗЫ */}
+      {page==="orders" && <div>
+        <Header title="Заказы" sub="Управление статусами"/>
+        <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
+          {["all",...Object.keys(STATUS)].map(f=>(
+            <button key={f} onClick={()=>setOrderFilter(f)} style={{padding:"8px 15px",borderRadius:20,border:`1px solid ${orderFilter===f?T.brand:T.line}`,background:orderFilter===f?T.brandSoft:"transparent",color:orderFilter===f?T.brand2:T.dim,fontSize:12.5,fontWeight:600,cursor:"pointer",transition:"all .15s"}}>{f==="all"?"Все":STATUS[f].l}</button>))}
         </div>
+        <div style={{display:"grid",gap:13}}>
+          {orders.filter(o=>orderFilter==="all"||o.status===orderFilter).map(o=>{ const st=STATUS[o.status]||STATUS.new; return(
+            <Card key={o.id} style={{borderLeft:`3px solid ${st.c}`,padding:18}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:11,gap:10}}>
+                <div><div style={{fontSize:16,fontWeight:750,letterSpacing:-.3}}>Заказ №{o.order_number}</div>
+                  {isAdmin && <div style={{fontSize:12,color:T.faint,marginTop:2}}>{o.clients?.name}</div>}</div>
+                <Pill s={o.status}/>
+              </div>
+              <div style={{fontSize:13.5,color:"#C8CDD6",whiteSpace:"pre-wrap",lineHeight:1.65,background:T.bg,borderRadius:11,padding:13,border:`1px solid ${T.line}`}}>{o.items_text}</div>
+              <div style={{display:"flex",gap:7,marginTop:13,flexWrap:"wrap"}}>
+                {Object.keys(STATUS).map(s=>(<button key={s} onClick={async()=>{ await apiPost("/api/update-order-status",{order_id:o.id,status:s}); setOrders(orders.map(x=>x.id===o.id?{...x,status:s}:x)); notify(`Заказ №${o.order_number} — ${STATUS[s].l}`); }}
+                  style={{padding:"6px 12px",borderRadius:9,border:`1px solid ${o.status===s?STATUS[s].c:T.line}`,background:o.status===s?STATUS[s].c+"1A":"transparent",color:o.status===s?STATUS[s].c:T.dim,fontSize:11.5,fontWeight:600,cursor:"pointer"}}>{STATUS[s].l}</button>))}
+              </div>
+            </Card>);})}
+          {orders.filter(o=>orderFilter==="all"||o.status===orderFilter).length===0 && <Empty text="Нет заказов в этой категории"/>}
+        </div>
+      </div>}
 
-        {tab==="info" && <div style={card}>
-          <div style={{ fontSize:13, fontWeight:600, marginBottom:14 }}>Информация</div>
-          {[["Название",c.name],["Город",c.city],["Тариф",`${c.plan} ($${c.plan_price}/мес)`],["Статус",c.status],["AI модель",c.config?.ai_model||"—"]].map(([l,v])=>(
-            <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"9px 0", borderBottom:`1px solid ${C.border}`, fontSize:13 }}>
-              <span style={{ color:C.muted }}>{l}</span><span style={{ fontWeight:600 }}>{v}</span></div>))}
-        </div>}
+      {/* КЛИЕНТЫ */}
+      {page==="clients" && !selected && <div>
+        <Header title={isAdmin?"Заведения":"Ваше заведение"} sub={isAdmin?"Подключённые бизнесы":"Управление и меню"}/>
+        <div style={{display:"grid",gap:13}}>
+          {clients.map(c=>(
+            <Card key={c.id} hover style={{cursor:"pointer"}} onClick={()=>{setSelected(c);setTab("info");loadMenu(c.id);}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12}}>
+                <div style={{display:"flex",gap:14,alignItems:"center",minWidth:0}}>
+                  <div style={{width:50,height:50,borderRadius:14,background:`linear-gradient(135deg,${T.surface2},${T.bg})`,border:`1px solid ${T.line}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,flexShrink:0}}>{c.emoji}</div>
+                  <div style={{minWidth:0}}>
+                    <div style={{fontSize:16,fontWeight:750,letterSpacing:-.3}}>{c.name}</div>
+                    <div style={{fontSize:12.5,color:T.dim,marginTop:2}}>{c.city} · {c.plan} · {c.config?.ai_model||"—"}</div>
+                  </div>
+                </div>
+                <div style={{display:"flex",gap:22,flexShrink:0}}>
+                  <Metric v={c.dialogs_count} l="диалогов"/>
+                  <Metric v={c.orders_count} l="заказов" accent={T.green}/>
+                  <div style={{color:T.faint,fontSize:18,alignSelf:"center"}}>›</div>
+                </div>
+              </div>
+            </Card>))}
+        </div>
+      </div>}
 
-        {tab==="menu" && <div style={card}>
-          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
-            <div style={{ fontSize:13, fontWeight:600 }}>Меню ({menu.length})</div>
-            <button style={{ ...btn(), padding:"6px 12px", fontSize:12 }} onClick={()=>setAddingItem(true)}>+ Позиция</button>
+      {/* ДЕТАЛИ */}
+      {page==="clients" && selected && (()=>{ const c=selected;
+        const TABS=[{id:"info",l:"О заведении"},{id:"menu",l:"Меню"},...(isAdmin?[{id:"bot",l:"Промпт"},{id:"channel",l:"Подключение"}]:[])];
+        return(<div>
+          <Btn kind="subtle" onClick={()=>setSelected(null)} style={{marginBottom:14,paddingLeft:0}}>‹ Назад</Btn>
+          <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:22}}>
+            <div style={{width:54,height:54,borderRadius:15,background:`linear-gradient(135deg,${T.surface2},${T.bg})`,border:`1px solid ${T.line}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>{c.emoji}</div>
+            <div><div style={{fontSize:22,fontWeight:800,letterSpacing:-.5}}>{c.name}</div><div style={{fontSize:13,color:T.dim}}>{c.city}</div></div>
           </div>
-          {addingItem && <div style={{ background:C.bg, borderRadius:10, padding:12, marginBottom:14, border:`1px solid ${C.border}` }}>
-            <input id="ni-name" placeholder="Название блюда" style={{ ...input, marginBottom:8 }}/>
-            <div style={{ display:"flex", gap:8, marginBottom:8 }}>
-              <input id="ni-price" placeholder="Цена" type="number" style={{ ...input }}/>
-              <input id="ni-cat" placeholder="Категория" style={{ ...input }}/>
+          <div style={{display:"flex",gap:6,marginBottom:22,borderBottom:`1px solid ${T.line}`,overflowX:"auto"}}>
+            {TABS.map(t=>(<div key={t.id} onClick={()=>setTab(t.id)} style={{padding:"11px 16px",cursor:"pointer",fontSize:13.5,fontWeight:tab===t.id?700:500,color:tab===t.id?T.text:T.dim,borderBottom:`2px solid ${tab===t.id?T.brand:"transparent"}`,marginBottom:-1,whiteSpace:"nowrap",transition:"color .15s"}}>{t.l}</div>))}
+          </div>
+
+          {tab==="info" && <Card>
+            {[["Название",c.name],["Город",c.city],["Тариф",`${c.plan} · $${c.plan_price}/мес`],["Статус",c.status==="active"?"Активен":c.status],["AI-модель",c.config?.ai_model||"—"]].map(([l,v],i,a)=>(
+              <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 0",borderBottom:i<a.length-1?`1px solid ${T.line}`:"none"}}>
+                <span style={{color:T.dim,fontSize:13.5}}>{l}</span><span style={{fontWeight:650,fontSize:14}}>{v}</span></div>))}
+          </Card>}
+
+          {tab==="menu" && <Card>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+              <div><div style={{fontSize:15,fontWeight:700}}>Меню</div><div style={{fontSize:12.5,color:T.dim}}>{menu.length} позиций · бот обновляется сразу</div></div>
+              <Btn size="sm" onClick={()=>setAddingItem(true)}>+ Добавить</Btn>
             </div>
-            <div style={{ display:"flex", gap:8 }}>
-              <button style={btn()} onClick={async()=>{
-                const name=document.getElementById("ni-name").value.trim();
-                const price=+document.getElementById("ni-price").value||0;
-                const cat=document.getElementById("ni-cat").value.trim()||"Прочее";
-                if(!name){ fl("Введите название"); return; }
-                await apiPost("/api/add-menu-item",{client_id:c.id,name,price,category:cat});
-                fl("Позиция добавлена! Бот уже знает."); setAddingItem(false); loadMenu(c.id);
-              }}>Добавить</button>
-              <button style={btn("x")} onClick={()=>setAddingItem(false)}>Отмена</button>
-            </div>
+            {addingItem && <div style={{background:T.bg,borderRadius:13,padding:16,marginBottom:16,border:`1px solid ${T.brand}40`}}>
+              <Field id="ni-name" placeholder="Название позиции" style={{marginBottom:10}}/>
+              <div style={{display:"flex",gap:10,marginBottom:12}}>
+                <Field id="ni-price" placeholder="Цена, ₽" type="number"/>
+                <Field id="ni-cat" placeholder="Категория"/>
+              </div>
+              <div style={{display:"flex",gap:9}}>
+                <Btn size="sm" onClick={async()=>{ const name=document.getElementById("ni-name").value.trim(); const price=+document.getElementById("ni-price").value||0; const cat=document.getElementById("ni-cat").value.trim()||"Прочее"; if(!name){notify("Введите название");return;} await apiPost("/api/add-menu-item",{client_id:c.id,name,price,category:cat}); notify("Позиция добавлена"); setAddingItem(false); loadMenu(c.id); }}>Сохранить</Btn>
+                <Btn size="sm" kind="ghost" onClick={()=>setAddingItem(false)}>Отмена</Btn>
+              </div>
+            </div>}
+            {menu.length===0 && !addingItem && <Empty text="Меню пустое — добавьте первую позицию"/>}
+            {menu.map(m=>(<div key={m.id} style={{display:"flex",alignItems:"center",gap:11,padding:"12px 0",borderBottom:`1px solid ${T.line}`,opacity:m.available?1:0.45}}>
+              <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600}}>{m.name}</div><div style={{fontSize:11.5,color:T.faint}}>{m.category}{!m.available&&" · в стоп-листе"}</div></div>
+              <Field defaultValue={m.price} style={{width:76,padding:"7px 9px",textAlign:"right"}} onBlur={async(e)=>{ await apiPost("/api/update-menu-item",{id:m.id,price:+e.target.value,available:m.available}); notify("Цена обновлена"); }}/>
+              <Toggle on={m.available} onClick={async()=>{ const nv=!m.available; await apiPost("/api/update-menu-item",{id:m.id,price:m.price,available:nv}); setMenu(menu.map(x=>x.id===m.id?{...x,available:nv}:x)); }}/>
+              <div onClick={async()=>{ if(confirm("Удалить позицию?")){ await apiPost("/api/delete-menu-item",{id:m.id}); setMenu(menu.filter(x=>x.id!==m.id)); notify("Удалено"); } }} style={{cursor:"pointer",color:T.faint,fontSize:20,flexShrink:0,padding:"0 4px",transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.faint}>×</div>
+            </div>))}
+          </Card>}
+
+          {tab==="bot" && <Card>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Промпт ассистента</div>
+            <div style={{fontSize:12.5,color:T.dim,marginBottom:14}}>Характер и логика бота. Сохранение применяется мгновенно.</div>
+            <textarea defaultValue={c.config?.prompt||""} rows={15} id="prompt-area" style={{...inp,resize:"vertical",lineHeight:1.7,fontFamily:fontStack}} onFocus={e=>e.target.style.borderColor=T.brand} onBlur={e=>e.target.style.borderColor=T.line}/>
+            <Btn onClick={async()=>{ await apiPost("/api/update-prompt",{client_id:c.id,prompt:document.getElementById("prompt-area").value}); notify("Промпт сохранён"); }} style={{marginTop:12}}>Сохранить промпт</Btn>
+          </Card>}
+
+          {tab==="channel" && <div style={{display:"grid",gap:14}}>
+            <Card>
+              <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Адрес сервера</div>
+              <div style={{fontSize:12.5,color:T.dim,marginBottom:13}}>Сменился адрес — впишите и переподключите бота.</div>
+              <Field id="base-url" defaultValue={API} style={{marginBottom:12}}/>
+              <Btn onClick={async()=>{ const base=document.getElementById("base-url").value.trim(); notify("Переподключаю…"); try{ const r=await apiPost("/api/reconnect-webhook",{client_id:c.id,base_url:base}); notify(r.results?.every(x=>x.ok)?"Бот переподключён":"Проверьте токен"); }catch{ notify("Ошибка"); } }}>Переподключить webhook</Btn>
+            </Card>
+            <Card>
+              <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Сменить токен бота</div>
+              <div style={{fontSize:12.5,color:T.dim,marginBottom:13}}>После revoke в BotFather — вставьте новый, webhook поставится сам.</div>
+              <Field id="new-token" type="password" placeholder="Новый токен" style={{marginBottom:12}}/>
+              <Btn onClick={async()=>{ const tok=document.getElementById("new-token").value.trim(); const base=document.getElementById("base-url")?.value.trim()||API; if(!tok){notify("Введите токен");return;} notify("Сохраняю…"); try{ const r=await apiPost("/api/update-token",{client_id:c.id,token:tok,base_url:base}); notify(r.webhook?"Токен обновлён, бот подключён":"Токен сохранён"); }catch{ notify("Ошибка"); } }}>Сохранить и подключить</Btn>
+            </Card>
           </div>}
-          {menu.length===0 && !addingItem && <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:20 }}>Меню пустое</div>}
-          {menu.map(m=>(<div key={m.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom:`1px solid ${C.border}`, opacity:m.available?1:0.5 }}>
-            <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:14 }}>{m.name}</div><div style={{ fontSize:11, color:C.muted }}>{m.category}{!m.available&&" · СТОП"}</div></div>
-            <input style={{ ...input, width:70, flex:"none", padding:"6px 8px" }} defaultValue={m.price} onBlur={async(e)=>{ await apiPost("/api/update-menu-item",{id:m.id,price:+e.target.value,available:m.available}); fl("Цена обновлена"); }}/>
-            <div onClick={async()=>{ const nv=!m.available; await apiPost("/api/update-menu-item",{id:m.id,price:m.price,available:nv}); setMenu(menu.map(x=>x.id===m.id?{...x,available:nv}:x)); }}
-              style={{ width:38, height:22, borderRadius:11, background:m.available?C.green:C.border, cursor:"pointer", position:"relative", flexShrink:0 }}>
-              <div style={{ width:16, height:16, borderRadius:"50%", background:"#fff", position:"absolute", top:3, left:m.available?19:3, transition:"0.2s" }}/></div>
-            <div onClick={async()=>{ if(confirm("Удалить позицию?")){ await apiPost("/api/delete-menu-item",{id:m.id}); setMenu(menu.filter(x=>x.id!==m.id)); fl("Удалено"); } }}
-              style={{ cursor:"pointer", color:C.red, fontSize:18, flexShrink:0, padding:"0 4px" }}>×</div>
-          </div>))}
-        </div>}
+        </div>);})()}
 
-        {tab==="bot" && <div style={card}>
-          <div style={{ fontSize:13, fontWeight:600, marginBottom:8 }}>Промпт бота</div>
-          <textarea defaultValue={c.config?.prompt||""} rows={16} id="prompt-area" style={{ ...input, resize:"vertical", lineHeight:1.6, fontFamily:"inherit" }}/>
-          <button style={{ ...btn(), marginTop:10 }} onClick={async()=>{ const v=document.getElementById("prompt-area").value; await apiPost("/api/update-prompt",{client_id:c.id,prompt:v}); fl("Промпт сохранён! Бот уже использует новый."); }}>💾 Сохранить промпт</button>
-        </div>}
-
-        {tab==="channel" && <div style={{ display:"grid", gap:16 }}>
-          <div style={card}>
-            <div style={{ fontSize:13, fontWeight:600, marginBottom:8 }}>Адрес сервера</div>
-            <div style={{ fontSize:12, color:C.muted, marginBottom:8 }}>Если адрес сервера сменился — впиши новый и переподключи бота одной кнопкой.</div>
-            <input id="base-url" defaultValue={API} style={{ ...input, marginBottom:10 }} placeholder="https://...up.railway.app"/>
-            <button style={btn()} onClick={async()=>{
-              const base=document.getElementById("base-url").value.trim();
-              fl("Переподключаю...");
-              try{ const r=await apiPost("/api/reconnect-webhook",{client_id:c.id,base_url:base});
-                const ok=r.results?.every(x=>x.ok); fl(ok?"✅ Бот переподключён!":"⚠️ Проверьте токен"); }
-              catch{ fl("Ошибка переподключения"); }
-            }}>🔗 Переподключить webhook</button>
+      {/* СТАТИСТИКА */}
+      {page==="stats" && <div>
+        <Header title="Статистика" sub={isAdmin?"Финансы и нагрузка":"Активность вашего заведения"}/>
+        {isAdmin ? <>
+          <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"repeat(3,1fr)",gap:14,marginBottom:18}}>
+            <Stat label="Доход" value={`$${income}`} accent={T.brand}/>
+            <Stat label="Расход AI" value={`$${cost.toFixed(2)}`} accent={T.red}/>
+            <Stat label="Прибыль" value={`$${(income-cost).toFixed(2)}`} accent={T.green}/>
           </div>
-          <div style={card}>
-            <div style={{ fontSize:13, fontWeight:600, marginBottom:8 }}>Сменить токен бота</div>
-            <div style={{ fontSize:12, color:C.muted, marginBottom:8 }}>После revoke в BotFather вставь новый токен — он сохранится и webhook поставится автоматически.</div>
-            <input id="new-token" type="password" style={{ ...input, marginBottom:10 }} placeholder="Новый токен от BotFather"/>
-            <button style={btn()} onClick={async()=>{
-              const tok=document.getElementById("new-token").value.trim();
-              const base=document.getElementById("base-url")?.value.trim()||API;
-              if(!tok){ fl("Введите токен"); return; }
-              fl("Сохраняю...");
-              try{ const r=await apiPost("/api/update-token",{client_id:c.id,token:tok,base_url:base});
-                fl(r.webhook?"✅ Токен обновлён и бот подключён!":"Токен сохранён, webhook не поставился"); }
-              catch{ fl("Ошибка"); }
-            }}>💾 Сохранить токен и подключить</button>
+          <Card>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:18}}>По заведениям</div>
+            <div style={{overflowX:"auto"}}><div style={{minWidth:460}}>
+              <Row head cells={["Заведение","Заказов","Расход","Прибыль"]}/>
+              {clients.map(c=>{ const ct=tokenCost(c); return <Row key={c.id} cells={[`${c.emoji} ${c.name}`,c.orders_count,`$${ct.toFixed(2)}`,`$${((c.plan_price||0)-ct).toFixed(2)}`]} colors={[T.text,T.dim,T.red,T.green]}/>; })}
+            </div></div>
+          </Card>
+        </> : <>
+          <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"repeat(3,1fr)",gap:14,marginBottom:18}}>
+            <Stat label="Заказов всего" value={clients.reduce((s,c)=>s+(c.orders_count||0),0)} accent={T.green}/>
+            <Stat label="Диалогов" value={clients.reduce((s,c)=>s+(c.dialogs_count||0),0)} accent={T.brand}/>
+            <Stat label="Новых" value={newOrders} accent={T.amber}/>
           </div>
-        </div>}
-      </div>);})()}
+          <Card>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:16}}>Заказы по статусам</div>
+            {Object.keys(STATUS).map(s=>{ const cnt=orders.filter(o=>o.status===s).length; const max=Math.max(...Object.keys(STATUS).map(x=>orders.filter(o=>o.status===x).length),1); return(
+              <div key={s} style={{marginBottom:13}}>
+                <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:6}}><span style={{color:STATUS[s].c,fontWeight:600}}>{STATUS[s].l}</span><span style={{fontWeight:700}}>{cnt}</span></div>
+                <div style={{height:7,background:T.bg,borderRadius:4,overflow:"hidden"}}><div style={{height:7,width:`${cnt/max*100}%`,background:STATUS[s].c,borderRadius:4,transition:"width .5s"}}/></div>
+              </div>);})}
+          </Card>
+        </>}
+      </div>}
+    </>
+  );
 
-    {/* СТАТИСТИКА */}
-    {page === "stats" && <div>
-      <h1 style={{ fontSize:22, fontWeight:700, margin:"0 0 4px" }}>Статистика</h1>
-      <p style={{ color:C.muted, fontSize:14, margin:"0 0 20px" }}>Финансы по клиентам</p>
-      <div style={{ display:"grid", gridTemplateColumns:mob?"1fr":"repeat(3,1fr)", gap:12, marginBottom:20 }}>
-        {[{l:"Доход",v:`$${totalIncome}`,c:C.accent},{l:"Расход AI",v:`$${totalCost.toFixed(2)}`,c:C.red},{l:"Прибыль",v:`$${(totalIncome-totalCost).toFixed(2)}`,c:C.green}].map(s=>(
-          <div key={s.l} style={{ ...card, borderTop:`3px solid ${s.c}` }}><div style={{ fontSize:11, color:s.c, fontWeight:600, textTransform:"uppercase", marginBottom:6 }}>{s.l}</div><div style={{ fontSize:28, fontWeight:800 }}>{s.v}</div></div>))}
-      </div>
-      <div style={card}>
-        <div style={{ fontSize:14, fontWeight:600, marginBottom:16 }}>По клиентам</div>
-        <div style={{ overflowX:"auto" }}><div style={{ minWidth:480 }}>
-          <div style={{ display:"grid", gridTemplateColumns:"1.5fr 1fr 1fr 1fr", gap:8, paddingBottom:10, borderBottom:`1px solid ${C.border}`, fontSize:11, color:C.muted, fontWeight:600, textTransform:"uppercase" }}>
-            <div>Клиент</div><div>Заказов</div><div>Расход AI</div><div>Прибыль</div></div>
-          {clients.map(c=>{ const cost=tokenCost(c); const profit=(c.plan_price||0)-cost; return(
-            <div key={c.id} style={{ display:"grid", gridTemplateColumns:"1.5fr 1fr 1fr 1fr", gap:8, padding:"12px 0", borderBottom:`1px solid ${C.border}`, fontSize:13, alignItems:"center" }}>
-              <div style={{ fontWeight:600 }}>{c.emoji} {c.name}</div><div>{c.orders_count}</div>
-              <div style={{ color:C.red }}>${cost.toFixed(2)}</div><div style={{ color:C.green, fontWeight:700 }}>${profit.toFixed(2)}</div>
-            </div>);})}
-        </div></div>
-      </div>
-    </div>}
-  </>);
+  // ── вспомогательные компоненты ──
+  function Header({title,sub,right}) { return (
+    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:22,gap:12,flexWrap:"wrap"}}>
+      <div><h1 style={{fontSize:mob?24:28,fontWeight:800,margin:"0 0 4px",letterSpacing:-.8}}>{title}</h1><p style={{color:T.dim,fontSize:13.5,margin:0}}>{sub}</p></div>
+      {right}
+    </div>); }
+  function Metric({v,l,accent}) { return <div style={{textAlign:"right"}}><div style={{fontWeight:750,fontSize:16,color:accent||T.text}}>{v}</div><div style={{fontSize:11,color:T.faint}}>{l}</div></div>; }
+  function Empty({text}) { return <div style={{color:T.faint,fontSize:13.5,textAlign:"center",padding:"36px 0"}}>{text}</div>; }
+  function Toggle({on,onClick}) { return <div onClick={onClick} style={{width:42,height:24,borderRadius:13,background:on?`linear-gradient(135deg,${T.green},#1FB868)`:T.line,cursor:"pointer",position:"relative",transition:"background .2s",flexShrink:0}}><div style={{width:18,height:18,borderRadius:"50%",background:"#fff",position:"absolute",top:3,left:on?21:3,transition:"left .2s",boxShadow:"0 2px 5px rgba(0,0,0,.3)"}}/></div>; }
+  function Row({head,cells,colors=[]}) { return (
+    <div style={{display:"grid",gridTemplateColumns:"1.6fr 1fr 1fr 1fr",gap:8,padding:head?"0 0 11px":"13px 0",borderBottom:`1px solid ${T.line}`,fontSize:head?11:13.5,color:head?T.faint:T.text,fontWeight:head?600:500,textTransform:head?"uppercase":"none",letterSpacing:head?.4:0,alignItems:"center"}}>
+      {cells.map((x,i)=><div key={i} style={{color:colors[i]||"inherit",fontWeight:i===0?650:(i===3?700:500)}}>{x}</div>)}
+    </div>); }
 
-  // МОБИЛЬНАЯ
+  const logout = () => { localStorage.removeItem("adminPwd"); localStorage.removeItem("role"); setLogged(false); setPwd(""); };
+
+  // ── МОБИЛЬНЫЙ ──
   if (mob) return (
-    <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:"'Inter',sans-serif", paddingBottom:70 }}>
-      <div style={{ padding:"14px 16px", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center", position:"sticky", top:0, background:C.card, zIndex:100 }}>
-        <div style={{ fontSize:17, fontWeight:800 }}>Bot<span style={{ color:C.accent }}>SaaS</span></div>
-        <div onClick={()=>{ localStorage.removeItem("adminPwd"); localStorage.removeItem("role"); setLogged(false); }} style={{ color:C.muted, fontSize:13 }}>Выйти</div></div>
-      <div style={{ padding:16 }}>{content}</div>
-      <div style={{ position:"fixed", bottom:0, left:0, right:0, background:C.card, borderTop:`1px solid ${C.border}`, display:"flex", justifyContent:"space-around", padding:"6px 0", zIndex:100 }}>
-        {NAV.map(n=>(<div key={n.id} onClick={()=>{ setPage(n.id); setSelected(null); }} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, cursor:"pointer", color:page===n.id?C.accent:C.muted, position:"relative", padding:"4px 10px" }}>
-          <span style={{ fontSize:17 }}>{n.icon}</span><span style={{ fontSize:9 }}>{n.label}</span>
-          {n.badge>0&&<span style={{ position:"absolute", top:0, right:2, background:C.red, color:"#fff", fontSize:8, fontWeight:700, borderRadius:10, padding:"1px 4px" }}>{n.badge}</span>}</div>))}
+    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:fontStack,paddingBottom:78}}>
+      <style>{`@keyframes sl{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}`}</style>
+      <div style={{padding:"16px 18px",borderBottom:`1px solid ${T.line}`,display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:T.bg+"F0",backdropFilter:"blur(12px)",zIndex:100}}>
+        <div style={{display:"flex",alignItems:"center",gap:9}}><div style={{width:30,height:30,borderRadius:9,background:`linear-gradient(135deg,${T.brand},${T.brand2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>◆</div><span style={{fontSize:17,fontWeight:800,letterSpacing:-.4}}>Aimuna</span></div>
+        <span onClick={logout} style={{color:T.dim,fontSize:13,cursor:"pointer"}}>Выйти</span>
+      </div>
+      <div style={{padding:18}}>{Body}</div>
+      <div style={{position:"fixed",bottom:0,left:0,right:0,background:T.surface+"F5",backdropFilter:"blur(14px)",borderTop:`1px solid ${T.line}`,display:"flex",justifyContent:"space-around",padding:"9px 0 11px",zIndex:100}}>
+        {NAV.map(n=>(<div key={n.id} onClick={()=>{setPage(n.id);setSelected(null);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer",color:page===n.id?T.brand2:T.faint,position:"relative",padding:"3px 14px",transition:"color .15s"}}>
+          <span style={{fontSize:19}}>{n.ic}</span><span style={{fontSize:10,fontWeight:600}}>{n.l}</span>
+          {n.badge>0&&<span style={{position:"absolute",top:-1,right:6,background:T.red,color:"#fff",fontSize:9,fontWeight:700,borderRadius:10,padding:"1px 5px"}}>{n.badge}</span>}</div>))}
       </div>
     </div>);
 
-  // ДЕСКТОП
+  // ── ДЕСКТОП ──
   return (
-    <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:"'Inter',sans-serif", display:"flex" }}>
-      <div style={{ width:210, background:C.card, borderRight:`1px solid ${C.border}`, position:"fixed", top:0, left:0, height:"100vh", display:"flex", flexDirection:"column" }}>
-        <div style={{ padding:"20px", borderBottom:`1px solid ${C.border}` }}><div style={{ fontSize:17, fontWeight:800 }}>Bot<span style={{ color:C.accent }}>SaaS</span></div></div>
-        <div style={{ flex:1, paddingTop:8 }}>{NAV.map(n=>(<div key={n.id} onClick={()=>{ setPage(n.id); setSelected(null); }} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 20px", cursor:"pointer", color:page===n.id?"#fff":C.muted, background:page===n.id?"#1f2937":"transparent", borderLeft:`3px solid ${page===n.id?C.accent:"transparent"}`, fontSize:14, fontWeight:page===n.id?600:400 }}>
-          <span>{n.icon}</span>{n.label}{n.badge>0&&<span style={{ marginLeft:"auto", background:C.red, color:"#fff", fontSize:10, fontWeight:700, borderRadius:10, padding:"1px 7px" }}>{n.badge}</span>}</div>))}</div>
-        <div onClick={()=>{ localStorage.removeItem("adminPwd"); localStorage.removeItem("role"); setLogged(false); }} style={{ padding:"14px 20px", borderTop:`1px solid ${C.border}`, color:C.muted, fontSize:13, cursor:"pointer" }}>← Выйти</div>
+    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:fontStack,display:"flex"}}>
+      <style>{`@keyframes sl{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}} *::-webkit-scrollbar{width:8px;height:8px}*::-webkit-scrollbar-thumb{background:${T.line};border-radius:4px}`}</style>
+      <div style={{width:236,background:T.surface,borderRight:`1px solid ${T.line}`,position:"fixed",top:0,left:0,height:"100vh",display:"flex",flexDirection:"column",padding:"0 0 18px"}}>
+        <div style={{padding:"24px 22px",display:"flex",alignItems:"center",gap:11}}>
+          <div style={{width:36,height:36,borderRadius:11,background:`linear-gradient(135deg,${T.brand},${T.brand2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:`0 6px 18px ${T.brand}45`}}>◆</div>
+          <span style={{fontSize:19,fontWeight:800,letterSpacing:-.5}}>Aimuna</span>
+        </div>
+        <div style={{flex:1,padding:"10px 14px"}}>
+          {NAV.map(n=>(<div key={n.id} onClick={()=>{setPage(n.id);setSelected(null);}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:12,marginBottom:3,cursor:"pointer",color:page===n.id?T.text:T.dim,background:page===n.id?T.brandSoft:"transparent",fontSize:14,fontWeight:page===n.id?650:500,transition:"all .15s",position:"relative"}}
+            onMouseEnter={e=>{if(page!==n.id)e.currentTarget.style.background=T.surface2;}} onMouseLeave={e=>{if(page!==n.id)e.currentTarget.style.background="transparent";}}>
+            <span style={{fontSize:17,color:page===n.id?T.brand2:T.faint}}>{n.ic}</span>{n.l}
+            {n.badge>0&&<span style={{marginLeft:"auto",background:T.red,color:"#fff",fontSize:10.5,fontWeight:700,borderRadius:10,padding:"2px 8px"}}>{n.badge}</span>}</div>))}
+        </div>
+        <div style={{padding:"0 14px"}}>
+          <div style={{padding:"12px 14px",borderRadius:12,background:T.surface2,marginBottom:10,display:"flex",alignItems:"center",gap:10}}>
+            <div style={{width:32,height:32,borderRadius:9,background:`linear-gradient(135deg,${T.brand},${T.brand2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700}}>{isAdmin?"A":"К"}</div>
+            <div style={{minWidth:0}}><div style={{fontSize:13,fontWeight:650}}>{isAdmin?"Администратор":"Заведение"}</div><div style={{fontSize:11,color:T.faint}}>{isAdmin?"полный доступ":"ваш кабинет"}</div></div>
+          </div>
+          <div onClick={logout} style={{padding:"11px 14px",borderRadius:11,color:T.dim,fontSize:13.5,cursor:"pointer",fontWeight:500,transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color=T.text} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Выйти из панели</div>
+        </div>
       </div>
-      <div style={{ marginLeft:210, flex:1, padding:28 }}>{content}</div>
+      <div style={{marginLeft:236,flex:1,padding:"32px 38px",maxWidth:1200}}>{Body}</div>
     </div>);
 }
