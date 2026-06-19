@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 
 // ════════════════════════════════════════
 // АДРЕС ТВОЕГО СЕРВЕРА (Railway)
-const API = "https://web-production-c4310.up.railway.app";
+const API = "https://web-production-ca50a.up.railway.app";
 // ════════════════════════════════════════
 
 const C = { bg:"#0a0e17", card:"#111827", border:"#1f2937", text:"#f9fafb", muted:"#6b7280", accent:"#6366f1", green:"#10b981", red:"#ef4444", yellow:"#f59e0b" };
