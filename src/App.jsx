@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 
 // ════════════════════════════════════════
 // АДРЕС ТВОЕГО СЕРВЕРА (Railway)
-const API = "https://web-production-ca50a.up.railway.app";
+const API = "https://web-production-c4310.up.railway.app";
 // ════════════════════════════════════════
 
 const C = { bg:"#0a0e17", card:"#111827", border:"#1f2937", text:"#f9fafb", muted:"#6b7280", accent:"#6366f1", green:"#10b981", red:"#ef4444", yellow:"#f59e0b" };
@@ -124,7 +124,16 @@ export default function App() {
     {page === "overview" && <div>
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
         <div><h1 style={{ fontSize:22, fontWeight:700, margin:"0 0 4px" }}>Обзор</h1><p style={{ color:C.muted, fontSize:14, margin:0 }}>Живые данные</p></div>
-        <button style={btn("x")} onClick={loadData}>🔄 Обновить</button>
+        <div style={{ display:"flex", gap:8 }}>
+          <button style={btn("x")} onClick={loadData}>🔄 Обновить</button>
+          <button style={btn()} onClick={async()=>{
+            fl("Переподключаю всех ботов...");
+            try{ const r=await apiPost("/api/reconnect-webhook",{base_url:API});
+              const ok=r.results?.filter(x=>x.ok).length||0;
+              fl(`✅ Переподключено ботов: ${ok}/${r.results?.length||0}`); }
+            catch{ fl("Ошибка"); }
+          }}>🔗 Переподключить ботов</button>
+        </div>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:mob?"1fr 1fr":"repeat(4,1fr)", gap:12, marginBottom:20 }}>
         {[{l:"Доход/мес",v:`$${totalIncome}`,c:C.accent},{l:"Расход AI",v:`$${totalCost.toFixed(2)}`,c:C.red},{l:"Прибыль",v:`$${(totalIncome-totalCost).toFixed(2)}`,c:C.green},{l:"Клиентов",v:clients.length,c:C.yellow}].map(s=>(
@@ -185,7 +194,7 @@ export default function App() {
 
     {/* ДЕТАЛИ КЛИЕНТА */}
     {page === "clients" && selected && (()=>{ const c=selected;
-      const TABS=[{id:"info",l:"Основное"},{id:"menu",l:"Меню"},{id:"bot",l:"Промпт"}];
+      const TABS=[{id:"info",l:"Основное"},{id:"menu",l:"Меню"},{id:"bot",l:"Промпт"},{id:"channel",l:"Подключение"}];
       return(<div>
         <button onClick={()=>setSelected(null)} style={{ ...btn("x"), marginBottom:16 }}>← Назад</button>
         <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:20 }}>
@@ -218,6 +227,35 @@ export default function App() {
           <div style={{ fontSize:13, fontWeight:600, marginBottom:8 }}>Промпт бота</div>
           <textarea defaultValue={c.config?.prompt||""} rows={16} id="prompt-area" style={{ ...input, resize:"vertical", lineHeight:1.6, fontFamily:"inherit" }}/>
           <button style={{ ...btn(), marginTop:10 }} onClick={async()=>{ const v=document.getElementById("prompt-area").value; await apiPost("/api/update-prompt",{client_id:c.id,prompt:v}); fl("Промпт сохранён! Бот уже использует новый."); }}>💾 Сохранить промпт</button>
+        </div>}
+
+        {tab==="channel" && <div style={{ display:"grid", gap:16 }}>
+          <div style={card}>
+            <div style={{ fontSize:13, fontWeight:600, marginBottom:8 }}>Адрес сервера</div>
+            <div style={{ fontSize:12, color:C.muted, marginBottom:8 }}>Если адрес сервера сменился — впиши новый и переподключи бота одной кнопкой.</div>
+            <input id="base-url" defaultValue={API} style={{ ...input, marginBottom:10 }} placeholder="https://...up.railway.app"/>
+            <button style={btn()} onClick={async()=>{
+              const base=document.getElementById("base-url").value.trim();
+              fl("Переподключаю...");
+              try{ const r=await apiPost("/api/reconnect-webhook",{client_id:c.id,base_url:base});
+                const ok=r.results?.every(x=>x.ok); fl(ok?"✅ Бот переподключён!":"⚠️ Проверьте токен"); }
+              catch{ fl("Ошибка переподключения"); }
+            }}>🔗 Переподключить webhook</button>
+          </div>
+          <div style={card}>
+            <div style={{ fontSize:13, fontWeight:600, marginBottom:8 }}>Сменить токен бота</div>
+            <div style={{ fontSize:12, color:C.muted, marginBottom:8 }}>После revoke в BotFather вставь новый токен — он сохранится и webhook поставится автоматически.</div>
+            <input id="new-token" type="password" style={{ ...input, marginBottom:10 }} placeholder="Новый токен от BotFather"/>
+            <button style={btn()} onClick={async()=>{
+              const tok=document.getElementById("new-token").value.trim();
+              const base=document.getElementById("base-url")?.value.trim()||API;
+              if(!tok){ fl("Введите токен"); return; }
+              fl("Сохраняю...");
+              try{ const r=await apiPost("/api/update-token",{client_id:c.id,token:tok,base_url:base});
+                fl(r.webhook?"✅ Токен обновлён и бот подключён!":"Токен сохранён, webhook не поставился"); }
+              catch{ fl("Ошибка"); }
+            }}>💾 Сохранить токен и подключить</button>
+          </div>
         </div>}
       </div>);})()}
 
