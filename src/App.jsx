@@ -15,7 +15,9 @@ const TOKEN_PRICE = { deepseek:0.14, "claude-haiku":1.0, "claude-sonnet":3.0 };
 
 export default function App() {
   const [pwd, setPwd] = useState(localStorage.getItem("adminPwd") || "");
+  const [role, setRole] = useState(localStorage.getItem("role") || "");
   const [logged, setLogged] = useState(false);
+  const [loginInput, setLoginInput] = useState("");
   const [passInput, setPassInput] = useState("");
   const [loginErr, setLoginErr] = useState("");
   const [page, setPage] = useState("overview");
@@ -27,6 +29,7 @@ export default function App() {
   const [flash, setFlash] = useState("");
   const [orderFilter, setOrderFilter] = useState("all");
   const [loading, setLoading] = useState(false);
+  const [addingItem, setAddingItem] = useState(false);
   const [mob, setMob] = useState(false);
 
   useEffect(() => { const f = () => setMob(window.innerWidth < 768); f(); window.addEventListener("resize", f); return () => window.removeEventListener("resize", f); }, []);
@@ -52,23 +55,27 @@ export default function App() {
   const doLogin = async () => {
     setLoginErr("");
     try {
-      const r = await fetch(API + "/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: passInput }) });
+      const r = await fetch(API + "/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: loginInput, password: passInput }) });
       if (r.ok) {
-        setPwd(passInput);
-        localStorage.setItem("adminPwd", passInput);
+        const data = await r.json();
+        const headerToken = loginInput ? `${loginInput}:${passInput}` : passInput;
+        setPwd(headerToken);
+        setRole(data.role || "admin");
+        localStorage.setItem("adminPwd", headerToken);
+        localStorage.setItem("role", data.role || "admin");
         setLogged(true);
       } else {
-        setLoginErr("Неверный пароль");
+        setLoginErr("Неверный логин или пароль");
       }
     } catch {
       setLoginErr("Сервер недоступен");
     }
   };
 
-  // авто-логин если пароль сохранён
+  // авто-логин если токен сохранён (проверяем что данные грузятся)
   useEffect(() => {
     if (pwd && !logged) {
-      fetch(API + "/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password: pwd }) })
+      fetch(API + "/api/clients", { headers: { "X-Admin-Password": pwd } })
         .then(r => { if (r.ok) setLogged(true); });
     }
   }, []);
@@ -102,6 +109,7 @@ export default function App() {
         <div style={{ fontSize: 40, marginBottom: 8 }}>🤖</div>
         <h1 style={{ color: C.text, fontSize: 22, fontWeight: 800, margin: "0 0 4px" }}>Bot<span style={{ color: C.accent }}>SaaS</span></h1>
         <p style={{ color: C.muted, fontSize: 13, margin: "0 0 24px" }}>Панель управления</p>
+        <input type="text" placeholder="Логин" value={loginInput} onChange={e => setLoginInput(e.target.value)} onKeyDown={e => e.key === "Enter" && doLogin()} style={{ ...input, marginBottom: 10, textAlign: "center" }} />
         <input type="password" placeholder="Пароль" value={passInput} onChange={e => setPassInput(e.target.value)} onKeyDown={e => e.key === "Enter" && doLogin()} style={{ ...input, marginBottom: 12, textAlign: "center" }} />
         {loginErr && <div style={{ color: C.red, fontSize: 13, marginBottom: 12 }}>{loginErr}</div>}
         <button onClick={doLogin} style={{ ...btn(), width: "100%" }}>Войти</button>
@@ -126,13 +134,13 @@ export default function App() {
         <div><h1 style={{ fontSize:22, fontWeight:700, margin:"0 0 4px" }}>Обзор</h1><p style={{ color:C.muted, fontSize:14, margin:0 }}>Живые данные</p></div>
         <div style={{ display:"flex", gap:8 }}>
           <button style={btn("x")} onClick={loadData}>🔄 Обновить</button>
-          <button style={btn()} onClick={async()=>{
+          {role==="admin" && <button style={btn()} onClick={async()=>{
             fl("Переподключаю всех ботов...");
             try{ const r=await apiPost("/api/reconnect-webhook",{base_url:API});
               const ok=r.results?.filter(x=>x.ok).length||0;
               fl(`✅ Переподключено ботов: ${ok}/${r.results?.length||0}`); }
             catch{ fl("Ошибка"); }
-          }}>🔗 Переподключить ботов</button>
+          }}>🔗 Переподключить ботов</button>}
         </div>
       </div>
       <div style={{ display:"grid", gridTemplateColumns:mob?"1fr 1fr":"repeat(4,1fr)", gap:12, marginBottom:20 }}>
@@ -212,14 +220,37 @@ export default function App() {
         </div>}
 
         {tab==="menu" && <div style={card}>
-          <div style={{ fontSize:13, fontWeight:600, marginBottom:14 }}>Меню ({menu.length})</div>
-          {menu.length===0 && <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:20 }}>Меню пустое или загружается…</div>}
-          {menu.map(m=>(<div key={m.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"10px 0", borderBottom:`1px solid ${C.border}`, opacity:m.available?1:0.5 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+            <div style={{ fontSize:13, fontWeight:600 }}>Меню ({menu.length})</div>
+            <button style={{ ...btn(), padding:"6px 12px", fontSize:12 }} onClick={()=>setAddingItem(true)}>+ Позиция</button>
+          </div>
+          {addingItem && <div style={{ background:C.bg, borderRadius:10, padding:12, marginBottom:14, border:`1px solid ${C.border}` }}>
+            <input id="ni-name" placeholder="Название блюда" style={{ ...input, marginBottom:8 }}/>
+            <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+              <input id="ni-price" placeholder="Цена" type="number" style={{ ...input }}/>
+              <input id="ni-cat" placeholder="Категория" style={{ ...input }}/>
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button style={btn()} onClick={async()=>{
+                const name=document.getElementById("ni-name").value.trim();
+                const price=+document.getElementById("ni-price").value||0;
+                const cat=document.getElementById("ni-cat").value.trim()||"Прочее";
+                if(!name){ fl("Введите название"); return; }
+                await apiPost("/api/add-menu-item",{client_id:c.id,name,price,category:cat});
+                fl("Позиция добавлена! Бот уже знает."); setAddingItem(false); loadMenu(c.id);
+              }}>Добавить</button>
+              <button style={btn("x")} onClick={()=>setAddingItem(false)}>Отмена</button>
+            </div>
+          </div>}
+          {menu.length===0 && !addingItem && <div style={{ color:C.muted, fontSize:13, textAlign:"center", padding:20 }}>Меню пустое</div>}
+          {menu.map(m=>(<div key={m.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 0", borderBottom:`1px solid ${C.border}`, opacity:m.available?1:0.5 }}>
             <div style={{ flex:1, minWidth:0 }}><div style={{ fontSize:14 }}>{m.name}</div><div style={{ fontSize:11, color:C.muted }}>{m.category}{!m.available&&" · СТОП"}</div></div>
-            <input style={{ ...input, width:75, flex:"none", padding:"6px 8px" }} defaultValue={m.price} onBlur={async(e)=>{ await apiPost("/api/update-menu-item",{id:m.id,price:+e.target.value,available:m.available}); fl("Цена обновлена"); }}/>
+            <input style={{ ...input, width:70, flex:"none", padding:"6px 8px" }} defaultValue={m.price} onBlur={async(e)=>{ await apiPost("/api/update-menu-item",{id:m.id,price:+e.target.value,available:m.available}); fl("Цена обновлена"); }}/>
             <div onClick={async()=>{ const nv=!m.available; await apiPost("/api/update-menu-item",{id:m.id,price:m.price,available:nv}); setMenu(menu.map(x=>x.id===m.id?{...x,available:nv}:x)); }}
-              style={{ width:40, height:22, borderRadius:11, background:m.available?C.green:C.border, cursor:"pointer", position:"relative", flexShrink:0 }}>
-              <div style={{ width:16, height:16, borderRadius:"50%", background:"#fff", position:"absolute", top:3, left:m.available?21:3, transition:"0.2s" }}/></div>
+              style={{ width:38, height:22, borderRadius:11, background:m.available?C.green:C.border, cursor:"pointer", position:"relative", flexShrink:0 }}>
+              <div style={{ width:16, height:16, borderRadius:"50%", background:"#fff", position:"absolute", top:3, left:m.available?19:3, transition:"0.2s" }}/></div>
+            <div onClick={async()=>{ if(confirm("Удалить позицию?")){ await apiPost("/api/delete-menu-item",{id:m.id}); setMenu(menu.filter(x=>x.id!==m.id)); fl("Удалено"); } }}
+              style={{ cursor:"pointer", color:C.red, fontSize:18, flexShrink:0, padding:"0 4px" }}>×</div>
           </div>))}
         </div>}
 
@@ -287,7 +318,7 @@ export default function App() {
     <div style={{ minHeight:"100vh", background:C.bg, color:C.text, fontFamily:"'Inter',sans-serif", paddingBottom:70 }}>
       <div style={{ padding:"14px 16px", borderBottom:`1px solid ${C.border}`, display:"flex", justifyContent:"space-between", alignItems:"center", position:"sticky", top:0, background:C.card, zIndex:100 }}>
         <div style={{ fontSize:17, fontWeight:800 }}>Bot<span style={{ color:C.accent }}>SaaS</span></div>
-        <div onClick={()=>{ localStorage.removeItem("adminPwd"); setLogged(false); }} style={{ color:C.muted, fontSize:13 }}>Выйти</div></div>
+        <div onClick={()=>{ localStorage.removeItem("adminPwd"); localStorage.removeItem("role"); setLogged(false); }} style={{ color:C.muted, fontSize:13 }}>Выйти</div></div>
       <div style={{ padding:16 }}>{content}</div>
       <div style={{ position:"fixed", bottom:0, left:0, right:0, background:C.card, borderTop:`1px solid ${C.border}`, display:"flex", justifyContent:"space-around", padding:"6px 0", zIndex:100 }}>
         {NAV.map(n=>(<div key={n.id} onClick={()=>{ setPage(n.id); setSelected(null); }} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:2, cursor:"pointer", color:page===n.id?C.accent:C.muted, position:"relative", padding:"4px 10px" }}>
@@ -303,7 +334,7 @@ export default function App() {
         <div style={{ padding:"20px", borderBottom:`1px solid ${C.border}` }}><div style={{ fontSize:17, fontWeight:800 }}>Bot<span style={{ color:C.accent }}>SaaS</span></div></div>
         <div style={{ flex:1, paddingTop:8 }}>{NAV.map(n=>(<div key={n.id} onClick={()=>{ setPage(n.id); setSelected(null); }} style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 20px", cursor:"pointer", color:page===n.id?"#fff":C.muted, background:page===n.id?"#1f2937":"transparent", borderLeft:`3px solid ${page===n.id?C.accent:"transparent"}`, fontSize:14, fontWeight:page===n.id?600:400 }}>
           <span>{n.icon}</span>{n.label}{n.badge>0&&<span style={{ marginLeft:"auto", background:C.red, color:"#fff", fontSize:10, fontWeight:700, borderRadius:10, padding:"1px 7px" }}>{n.badge}</span>}</div>))}</div>
-        <div onClick={()=>{ localStorage.removeItem("adminPwd"); setLogged(false); }} style={{ padding:"14px 20px", borderTop:`1px solid ${C.border}`, color:C.muted, fontSize:13, cursor:"pointer" }}>← Выйти</div>
+        <div onClick={()=>{ localStorage.removeItem("adminPwd"); localStorage.removeItem("role"); setLogged(false); }} style={{ padding:"14px 20px", borderTop:`1px solid ${C.border}`, color:C.muted, fontSize:13, cursor:"pointer" }}>← Выйти</div>
       </div>
       <div style={{ marginLeft:210, flex:1, padding:28 }}>{content}</div>
     </div>);
