@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const API = "https://web-production-ca50a.up.railway.app";
+const API = "https://api.neurokaldristal.ru";
 // ── Дизайн-токены ──
 const T = {
   bg: "#0B0D12", surface: "#13161D", surface2: "#1A1E27", line: "#252A35",
