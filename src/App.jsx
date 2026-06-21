@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 
-const API = "https://api.neurokaldristal.ru";
+const API = "https://web-production-ca50a.up.railway.app";
+
 // ── Дизайн-токены ──
 const T = {
   bg: "#0B0D12", surface: "#13161D", surface2: "#1A1E27", line: "#252A35",
@@ -108,8 +109,8 @@ export default function App() {
           <div style={{fontSize:21,fontWeight:800,letterSpacing:-.5}}>Aimuna</div>
         </div>
         <p style={{color:T.dim,fontSize:13.5,margin:"0 0 28px",lineHeight:1.5}}>Панель управления ботами</p>
-        <div style={{marginBottom:11}}><Field placeholder="Логин" value={loginInput} onChange={e=>setLoginInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doLogin()}/></div>
-        <div style={{marginBottom:18}}><Field type="password" placeholder="Пароль" value={passInput} onChange={e=>setPassInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doLogin()}/></div>
+        <div style={{marginBottom:11}}><input placeholder="Логин" value={loginInput} onChange={e=>setLoginInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doLogin()} style={inp}/></div>
+        <div style={{marginBottom:18}}><input type="password" placeholder="Пароль" value={passInput} onChange={e=>setPassInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doLogin()} style={inp}/></div>
         {loginErr && <div style={{color:T.red,fontSize:13,marginBottom:16,padding:"9px 12px",background:"#FF5C5C12",borderRadius:9,border:"1px solid #FF5C5C25"}}>{loginErr}</div>}
         <Btn onClick={doLogin} size="lg" style={{width:"100%",opacity:busy?.7:1}}>{busy?"Входим…":"Войти"}</Btn>
       </Card>
