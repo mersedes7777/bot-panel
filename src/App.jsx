@@ -176,7 +176,7 @@ export default function App() {
               <div style={{minWidth:0,display:"flex",alignItems:"center",gap:11}}>
                 <div style={{width:34,height:34,borderRadius:9,background:T.surface2,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:700,color:T.dim,flexShrink:0}}>№{o.order_number}</div>
                 <div style={{minWidth:0}}>
-                  <div style={{fontSize:13.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{(o.items_text||"").split("\n")[0]||"Заказ"}</div>
+                  <div style={{fontSize:13.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{((o.items_text||"").split("\n").filter(l=>l.trim()&&!/^(спасибо|ваш заказ|ваша заявка|📋)/i.test(l.trim()))[0])||(o.items_text||"").split("\n")[0]||"Заказ"}</div>
                   {isAdmin && <div style={{fontSize:11.5,color:T.faint}}>{o.clients?.name}</div>}
                 </div>
               </div>
