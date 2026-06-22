@@ -16,6 +16,29 @@ const STATUS = {
 };
 const TOKEN_PRICE = { deepseek:0.14, "claude-haiku":1.0, "claude-sonnet":3.0 };
 
+const FONT = "'Inter','SF Pro Display',-apple-system,sans-serif";
+const INP = {background:T.bg,border:`1px solid ${T.line}`,borderRadius:11,padding:"12px 14px",color:T.text,fontSize:16,outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color .2s",fontFamily:FONT};
+
+// Стабильные компоненты вне App — не пересоздаются при ререндере (фокус не слетает)
+function Field({style={},...p}) {
+  return <input {...p} style={{...INP,...style}}
+    onFocus={e=>e.target.style.borderColor=T.brand}
+    onBlur={e=>e.target.style.borderColor=T.line}/>;
+}
+function Btn({children,onClick,kind="primary",size="md",style={},...p}) {
+  const sizes={sm:{padding:"7px 13px",fontSize:12.5},md:{padding:"10px 18px",fontSize:13.5},lg:{padding:"13px 22px",fontSize:15}};
+  const kinds={
+    primary:{background:`linear-gradient(135deg,${T.brand},${T.brand2})`,color:"#fff",boxShadow:`0 4px 16px ${T.brand}40`},
+    ghost:{background:T.surface2,color:T.text,border:`1px solid ${T.line}`},
+    danger:{background:"#FF5C5C18",color:T.red,border:"1px solid #FF5C5C30"},
+    subtle:{background:"transparent",color:T.dim},
+  };
+  return <button onClick={onClick} style={{borderRadius:11,border:"none",cursor:"pointer",fontWeight:650,letterSpacing:.1,transition:"transform .15s",...sizes[size],...kinds[kind],...style}} {...p}>{children}</button>;
+}
+function Card({children,style={},...p}) {
+  return <div style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:18,padding:18,...style}} {...p}>{children}</div>;
+}
+
 export default function App() {
   const [pwd, setPwd] = useState(localStorage.getItem("adminPwd") || "");
   const [role, setRole] = useState(localStorage.getItem("role") || "");
@@ -76,27 +99,9 @@ export default function App() {
   const newOrders = orders.filter(o=>o.status==="new").length;
   const isAdmin = role==="admin";
 
-  // ── Примитивы ──
-  const Btn = ({children,onClick,kind="primary",size="md",style={},...p}) => {
-    const sizes={sm:{padding:"7px 13px",fontSize:12.5},md:{padding:"10px 18px",fontSize:13.5},lg:{padding:"13px 22px",fontSize:15}};
-    const kinds={
-      primary:{background:`linear-gradient(135deg,${T.brand},${T.brand2})`,color:"#fff",boxShadow:`0 4px 16px ${T.brand}40`},
-      ghost:{background:T.surface2,color:T.text,border:`1px solid ${T.line}`},
-      danger:{background:"#FF5C5C18",color:T.red,border:"1px solid #FF5C5C30"},
-      subtle:{background:"transparent",color:T.dim},
-    };
-    return <button onClick={onClick} style={{borderRadius:11,border:"none",cursor:"pointer",fontWeight:650,letterSpacing:.1,transition:"transform .15s, box-shadow .2s, filter .2s",...sizes[size],...kinds[kind],...style}}
-      onMouseDown={e=>e.currentTarget.style.transform="scale(.97)"} onMouseUp={e=>e.currentTarget.style.transform="scale(1)"} onMouseLeave={e=>e.currentTarget.style.transform="scale(1)"} {...p}>{children}</button>;
-  };
-  const Card = ({children,style={},hover=false,...p}) => (
-    <div style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:18,padding:mob?18:22,transition:"border-color .2s, transform .2s",...style}}
-      onMouseEnter={hover?e=>{e.currentTarget.style.borderColor=T.brand+"55";}:undefined}
-      onMouseLeave={hover?e=>{e.currentTarget.style.borderColor=T.line;}:undefined} {...p}>{children}</div>
-  );
-  const inp = {background:T.bg,border:`1px solid ${T.line}`,borderRadius:11,padding:"12px 14px",color:T.text,fontSize:14,outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color .2s"};
-  const Field = (p) => <input {...p} style={{...inp,...(p.style||{})}} onFocus={e=>e.target.style.borderColor=T.brand} onBlur={e=>e.target.style.borderColor=T.line}/>;
-
-  const fontStack = "'Inter','SF Pro Display',-apple-system,sans-serif";
+  // Примитивы Btn/Card/Field вынесены наружу модуля (фокус не слетает)
+  const inp = INP;
+  const fontStack = FONT;
 
   // ── ЛОГИН ──
   if (!logged) return (
@@ -105,8 +110,8 @@ export default function App() {
       <div style={{position:"absolute",width:500,height:500,borderRadius:"50%",background:`radial-gradient(circle,${T.cyan}14,transparent 70%)`,bottom:-180,left:-120,filter:"blur(40px)"}}/>
       <Card style={{width:"100%",maxWidth:380,padding:36,position:"relative",zIndex:1,boxShadow:"0 30px 80px rgba(0,0,0,.5)"}}>
         <div style={{display:"flex",alignItems:"center",gap:11,marginBottom:6}}>
-          <div style={{width:38,height:38,borderRadius:11,background:`linear-gradient(135deg,${T.brand},${T.brand2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,boxShadow:`0 6px 18px ${T.brand}50`}}>◆</div>
-          <div style={{fontSize:21,fontWeight:800,letterSpacing:-.5}}>Aimuna</div>
+          <div style={{width:38,height:38,borderRadius:11,background:"linear-gradient(135deg,#9D4EDD,#5B8DEF)",display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:"0 6px 18px #6D5EF655"}}>💬</div>
+          <div style={{fontSize:21,fontWeight:800,letterSpacing:-.5}}>ChatAIbot</div>
         </div>
         <p style={{color:T.dim,fontSize:13.5,margin:"0 0 28px",lineHeight:1.5}}>Панель управления ботами</p>
         <div style={{marginBottom:11}}><input placeholder="Логин" value={loginInput} onChange={e=>setLoginInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&doLogin()} style={inp}/></div>
@@ -125,7 +130,7 @@ export default function App() {
   ];
 
   const Stat = ({label,value,accent,sub}) => (
-    <Card hover style={{position:"relative",overflow:"hidden"}}>
+    <Card style={{position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:`linear-gradient(90deg,${accent},transparent)`}}/>
       <div style={{fontSize:11.5,color:T.dim,fontWeight:600,letterSpacing:.4,textTransform:"uppercase",marginBottom:9}}>{label}</div>
       <div style={{fontSize:mob?26:32,fontWeight:800,letterSpacing:-1,lineHeight:1}}>{value}</div>
@@ -266,12 +271,17 @@ export default function App() {
               </div>
             </div>}
             {menu.length===0 && !addingItem && <Empty text="Меню пустое — добавьте первую позицию"/>}
-            {menu.map(m=>(<div key={m.id} style={{display:"flex",alignItems:"center",gap:11,padding:"12px 0",borderBottom:`1px solid ${T.line}`,opacity:m.available?1:0.45}}>
-              <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600}}>{m.name}</div><div style={{fontSize:11.5,color:T.faint}}>{m.category}{!m.available&&" · в стоп-листе"}</div></div>
-              <Field defaultValue={m.price} style={{width:76,padding:"7px 9px",textAlign:"right"}} onBlur={async(e)=>{ await apiPost("/api/update-menu-item",{id:m.id,price:+e.target.value,available:m.available}); notify("Цена обновлена"); }}/>
-              <Toggle on={m.available} onClick={async()=>{ const nv=!m.available; await apiPost("/api/update-menu-item",{id:m.id,price:m.price,available:nv}); setMenu(menu.map(x=>x.id===m.id?{...x,available:nv}:x)); }}/>
-              <div onClick={async()=>{ if(confirm("Удалить позицию?")){ await apiPost("/api/delete-menu-item",{id:m.id}); setMenu(menu.filter(x=>x.id!==m.id)); notify("Удалено"); } }} style={{cursor:"pointer",color:T.faint,fontSize:20,flexShrink:0,padding:"0 4px",transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.faint}>×</div>
-            </div>))}
+            {Object.entries(menu.reduce((acc,m)=>{ const k=m.category||"Прочее"; (acc[k]=acc[k]||[]).push(m); return acc; },{})).map(([cat,items])=>(
+              <div key={cat} style={{marginBottom:18}}>
+                <div style={{fontSize:12,fontWeight:700,color:T.brand2,textTransform:"uppercase",letterSpacing:.5,margin:"6px 0 4px"}}>{cat} <span style={{color:T.faint}}>· {items.length}</span></div>
+                {items.map(m=>(<div key={m.id} style={{display:"flex",alignItems:"center",gap:11,padding:"12px 0",borderBottom:`1px solid ${T.line}`,opacity:m.available?1:0.45}}>
+                  <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600}}>{m.name}</div>{!m.available&&<div style={{fontSize:11.5,color:T.amber}}>в стоп-листе</div>}</div>
+                  <Field defaultValue={m.price} style={{width:76,padding:"7px 9px",textAlign:"right"}} onBlur={async(e)=>{ await apiPost("/api/update-menu-item",{id:m.id,price:+e.target.value,available:m.available}); notify("Цена обновлена"); }}/>
+                  <Toggle on={m.available} onClick={async()=>{ const nv=!m.available; await apiPost("/api/update-menu-item",{id:m.id,price:m.price,available:nv}); setMenu(menu.map(x=>x.id===m.id?{...x,available:nv}:x)); }}/>
+                  <div onClick={async()=>{ if(confirm("Удалить позицию?")){ await apiPost("/api/delete-menu-item",{id:m.id}); setMenu(menu.filter(x=>x.id!==m.id)); notify("Удалено"); } }} style={{cursor:"pointer",color:T.faint,fontSize:20,flexShrink:0,padding:"0 4px"}} onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.faint}>×</div>
+                </div>))}
+              </div>
+            ))}
           </Card>}
 
           {tab==="bot" && <Card>
@@ -353,7 +363,7 @@ export default function App() {
     <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:fontStack,paddingBottom:78}}>
       <style>{`@keyframes sl{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}`}</style>
       <div style={{padding:"16px 18px",borderBottom:`1px solid ${T.line}`,display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:T.bg+"F0",backdropFilter:"blur(12px)",zIndex:100}}>
-        <div style={{display:"flex",alignItems:"center",gap:9}}><div style={{width:30,height:30,borderRadius:9,background:`linear-gradient(135deg,${T.brand},${T.brand2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>◆</div><span style={{fontSize:17,fontWeight:800,letterSpacing:-.4}}>Aimuna</span></div>
+        <div style={{display:"flex",alignItems:"center",gap:9}}><div style={{width:30,height:30,borderRadius:9,background:`linear-gradient(135deg,${T.brand},${T.brand2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>◆</div><span style={{fontSize:17,fontWeight:800,letterSpacing:-.4}}>ChatAIbot</span></div>
         <span onClick={logout} style={{color:T.dim,fontSize:13,cursor:"pointer"}}>Выйти</span>
       </div>
       <div style={{padding:18}}>{Body}</div>
@@ -371,7 +381,7 @@ export default function App() {
       <div style={{width:236,background:T.surface,borderRight:`1px solid ${T.line}`,position:"fixed",top:0,left:0,height:"100vh",display:"flex",flexDirection:"column",padding:"0 0 18px"}}>
         <div style={{padding:"24px 22px",display:"flex",alignItems:"center",gap:11}}>
           <div style={{width:36,height:36,borderRadius:11,background:`linear-gradient(135deg,${T.brand},${T.brand2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,boxShadow:`0 6px 18px ${T.brand}45`}}>◆</div>
-          <span style={{fontSize:19,fontWeight:800,letterSpacing:-.5}}>Aimuna</span>
+          <span style={{fontSize:19,fontWeight:800,letterSpacing:-.5}}>ChatAIbot</span>
         </div>
         <div style={{flex:1,padding:"10px 14px"}}>
           {NAV.map(n=>(<div key={n.id} onClick={()=>{setPage(n.id);setSelected(null);}} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",borderRadius:12,marginBottom:3,cursor:"pointer",color:page===n.id?T.text:T.dim,background:page===n.id?T.brandSoft:"transparent",fontSize:14,fontWeight:page===n.id?650:500,transition:"all .15s",position:"relative"}}
