@@ -287,8 +287,12 @@ export default function App() {
                       notify("Загружаю фото…");
                       const reader=new FileReader();
                       reader.onload=async()=>{
-                        try{ const r=await apiPost("/api/upload-photo",{id:m.id,photo:reader.result});
-                          setMenu(menu.map(x=>x.id===m.id?{...x,photo_url:r.url}:x)); notify("Фото загружено"); }
+                        const localPreview=reader.result;
+                        // сразу показываем выбранное фото (мгновенно)
+                        setMenu(prev=>prev.map(x=>x.id===m.id?{...x,photo_url:localPreview}:x));
+                        try{ const r=await apiPost("/api/upload-photo",{id:m.id,photo:localPreview});
+                          const finalUrl=(r&&r.url)?r.url+"?t="+Date.now():localPreview;
+                          setMenu(prev=>prev.map(x=>x.id===m.id?{...x,photo_url:finalUrl}:x)); notify("Фото загружено ✓"); }
                         catch{ notify("Ошибка загрузки"); }
                       };
                       reader.readAsDataURL(file);
@@ -319,7 +323,10 @@ export default function App() {
                 catch{ notify("Не удалось проанализировать"); }
                 setAnalyzing(false);
               }} style={{opacity:analyzing?.6:1}}>{analyzing?"Анализирую…":"Запустить анализ"}</Btn>
-              {report && <div style={{marginTop:16,padding:16,background:T.bg,borderRadius:12,border:`1px solid ${T.line}`,fontSize:13.5,lineHeight:1.6,whiteSpace:"pre-wrap",color:"#C8CDD6"}}>{report}</div>}
+              {report && <div style={{marginTop:16}}>
+                <div style={{padding:16,background:T.bg,borderRadius:12,border:`1px solid ${T.line}`,fontSize:13.5,lineHeight:1.6,whiteSpace:"pre-wrap",color:"#C8CDD6"}}>{report}</div>
+                <Btn kind="ghost" size="sm" onClick={()=>{ navigator.clipboard.writeText(report); notify("Скопировано ✓"); }} style={{marginTop:10}}>📋 Скопировать</Btn>
+              </div>}
             </Card>
           </div>}
 
