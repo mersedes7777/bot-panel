@@ -275,10 +275,27 @@ export default function App() {
               <div key={cat} style={{marginBottom:18}}>
                 <div style={{fontSize:12,fontWeight:700,color:T.brand2,textTransform:"uppercase",letterSpacing:.5,margin:"6px 0 4px"}}>{cat} <span style={{color:T.faint}}>· {items.length}</span></div>
                 {items.map(m=>(<div key={m.id} style={{display:"flex",alignItems:"center",gap:11,padding:"12px 0",borderBottom:`1px solid ${T.line}`,opacity:m.available?1:0.45}}>
+                  <label style={{cursor:"pointer",flexShrink:0}} title="Загрузить фото">
+                    {m.photo_url
+                      ? <img src={m.photo_url} alt="" style={{width:44,height:44,borderRadius:10,objectFit:"cover",border:`1px solid ${T.line}`}}/>
+                      : <div style={{width:44,height:44,borderRadius:10,background:T.bg,border:`1px dashed ${T.line}`,display:"flex",alignItems:"center",justifyContent:"center",color:T.faint,fontSize:18}}>📷</div>}
+                    <input type="file" accept="image/*" style={{display:"none"}} onChange={async(e)=>{
+                      const file=e.target.files[0]; if(!file) return;
+                      if(file.size>5*1024*1024){ notify("Фото слишком большое (макс 5МБ)"); return; }
+                      notify("Загружаю фото…");
+                      const reader=new FileReader();
+                      reader.onload=async()=>{
+                        try{ const r=await apiPost("/api/upload-photo",{id:m.id,photo:reader.result});
+                          setMenu(menu.map(x=>x.id===m.id?{...x,photo_url:r.url}:x)); notify("Фото загружено"); }
+                        catch{ notify("Ошибка загрузки"); }
+                      };
+                      reader.readAsDataURL(file);
+                    }}/>
+                  </label>
                   <div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:600}}>{m.name}</div>{!m.available&&<div style={{fontSize:11.5,color:T.amber}}>в стоп-листе</div>}</div>
-                  <Field defaultValue={m.price} style={{width:76,padding:"7px 9px",textAlign:"right"}} onBlur={async(e)=>{ await apiPost("/api/update-menu-item",{id:m.id,price:+e.target.value,available:m.available}); notify("Цена обновлена"); }}/>
+                  <Field defaultValue={m.price} style={{width:70,padding:"7px 9px",textAlign:"right"}} onBlur={async(e)=>{ await apiPost("/api/update-menu-item",{id:m.id,price:+e.target.value,available:m.available}); notify("Цена обновлена"); }}/>
                   <Toggle on={m.available} onClick={async()=>{ const nv=!m.available; await apiPost("/api/update-menu-item",{id:m.id,price:m.price,available:nv}); setMenu(menu.map(x=>x.id===m.id?{...x,available:nv}:x)); }}/>
-                  <div onClick={async()=>{ if(confirm("Удалить позицию?")){ await apiPost("/api/delete-menu-item",{id:m.id}); setMenu(menu.filter(x=>x.id!==m.id)); notify("Удалено"); } }} style={{cursor:"pointer",color:T.faint,fontSize:20,flexShrink:0,padding:"0 4px"}} onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.faint}>×</div>
+                  <div onClick={async()=>{ if(confirm("Удалить позицию?")){ await apiPost("/api/delete-menu-item",{id:m.id}); setMenu(menu.filter(x=>x.id!==m.id)); notify("Удалено"); } }} style={{cursor:"pointer",color:T.faint,fontSize:20,flexShrink:0,padding:"0 2px"}} onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.faint}>×</div>
                 </div>))}
               </div>
             ))}
