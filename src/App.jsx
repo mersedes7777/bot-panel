@@ -57,6 +57,8 @@ export default function App() {
   const [orderFilter, setOrderFilter] = useState("all");
   const [loading, setLoading] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [report, setReport] = useState("");
   const [mob, setMob] = useState(false);
 
   useEffect(() => { const f=()=>setMob(window.innerWidth<860); f(); addEventListener("resize",f); return()=>removeEventListener("resize",f); }, []);
@@ -301,12 +303,25 @@ export default function App() {
             ))}
           </Card>}
 
-          {tab==="bot" && <Card>
+          {tab==="bot" && <div style={{display:"grid",gap:14}}>
+            <Card>
             <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Промпт ассистента</div>
             <div style={{fontSize:12.5,color:T.dim,marginBottom:14}}>Характер и логика бота. Сохранение применяется мгновенно.</div>
             <textarea defaultValue={c.config?.prompt||""} rows={15} id="prompt-area" style={{...inp,resize:"vertical",lineHeight:1.7,fontFamily:fontStack}} onFocus={e=>e.target.style.borderColor=T.brand} onBlur={e=>e.target.style.borderColor=T.line}/>
             <Btn onClick={async()=>{ await apiPost("/api/update-prompt",{client_id:c.id,prompt:document.getElementById("prompt-area").value}); notify("Промпт сохранён"); }} style={{marginTop:12}}>Сохранить промпт</Btn>
-          </Card>}
+            </Card>
+            <Card>
+              <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>🧠 Анализ диалогов (AI)</div>
+              <div style={{fontSize:12.5,color:T.dim,marginBottom:14}}>AI изучит реальные переписки бота с клиентами и подскажет, что улучшить в промпте.</div>
+              <Btn kind="ghost" onClick={async()=>{
+                setAnalyzing(true); setReport("");
+                try{ const r=await apiPost("/api/analyze-dialogs",{client_id:c.id}); setReport(r.report); }
+                catch{ notify("Не удалось проанализировать"); }
+                setAnalyzing(false);
+              }} style={{opacity:analyzing?.6:1}}>{analyzing?"Анализирую…":"Запустить анализ"}</Btn>
+              {report && <div style={{marginTop:16,padding:16,background:T.bg,borderRadius:12,border:`1px solid ${T.line}`,fontSize:13.5,lineHeight:1.6,whiteSpace:"pre-wrap",color:"#C8CDD6"}}>{report}</div>}
+            </Card>
+          </div>}
 
           {tab==="channel" && <div style={{display:"grid",gap:14}}>
             <Card>
