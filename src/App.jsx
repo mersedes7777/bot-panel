@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 
-const API = "https://web-production-ca50a.up.railway.app";
+const API = "https://api.neurokaldristal.ru";
 
 // ── Дизайн-токены ──
 const T = {
@@ -36,7 +36,7 @@ function Btn({children,onClick,kind="primary",size="md",style={},...p}) {
   return <button onClick={onClick} style={{borderRadius:11,border:"none",cursor:"pointer",fontWeight:650,letterSpacing:.1,transition:"transform .15s",...sizes[size],...kinds[kind],...style}} {...p}>{children}</button>;
 }
 function Card({children,style={},...p}) {
-  return <div style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:18,padding:18,...style}} {...p}>{children}</div>;
+  return <div style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:16,padding:20,...style}} {...p}>{children}</div>;
 }
 
 export default function App() {
@@ -59,6 +59,13 @@ export default function App() {
   const [addingItem, setAddingItem] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [report, setReport] = useState("");
+  const [dialogs, setDialogs] = useState([]);
+  const [dlgFilter, setDlgFilter] = useState("all");
+  const [openDlg, setOpenDlg] = useState(null);
+  const [loadingDlg, setLoadingDlg] = useState(false);
+  const [dateFilter, setDateFilter] = useState("all");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [mob, setMob] = useState(false);
 
   useEffect(() => { const f=()=>setMob(window.innerWidth<860); f(); addEventListener("resize",f); return()=>removeEventListener("resize",f); }, []);
@@ -94,6 +101,7 @@ export default function App() {
   };
   useEffect(() => { if(logged) loadData(); }, [logged]);
   const loadMenu = async (id) => { try{ const r=await apiGet("/api/menu/"+id); setMenu(r.menu||[]); }catch{ setMenu([]); } };
+  const loadDialogs = async (id) => { setLoadingDlg(true); try{ const r=await apiGet("/api/dialogs/"+id); setDialogs(r.dialogs||[]); }catch{ setDialogs([]); } setLoadingDlg(false); };
 
   const tokenCost = (c) => ((c.tokens||0)/1e6*(TOKEN_PRICE[c.config?.ai_model]||0.14));
   const income = clients.filter(c=>c.status==="active").reduce((s,c)=>s+(c.plan_price||0),0);
@@ -239,7 +247,7 @@ export default function App() {
 
       {/* ДЕТАЛИ */}
       {page==="clients" && selected && (()=>{ const c=selected;
-        const TABS=[{id:"info",l:"О заведении"},{id:"menu",l:"Меню"},...(isAdmin?[{id:"bot",l:"Промпт"},{id:"channel",l:"Подключение"}]:[])];
+        const TABS=[{id:"info",l:"О заведении"},{id:"menu",l:"Меню"},{id:"dialogs",l:"Диалоги"},...(isAdmin?[{id:"bot",l:"Промпт"},{id:"channel",l:"Подключение"}]:[])];
         return(<div>
           <Btn kind="subtle" onClick={()=>setSelected(null)} style={{marginBottom:14,paddingLeft:0}}>‹ Назад</Btn>
           <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:22}}>
@@ -247,7 +255,7 @@ export default function App() {
             <div><div style={{fontSize:22,fontWeight:800,letterSpacing:-.5}}>{c.name}</div><div style={{fontSize:13,color:T.dim}}>{c.city}</div></div>
           </div>
           <div style={{display:"flex",gap:6,marginBottom:22,borderBottom:`1px solid ${T.line}`,overflowX:"auto"}}>
-            {TABS.map(t=>(<div key={t.id} onClick={()=>setTab(t.id)} style={{padding:"11px 16px",cursor:"pointer",fontSize:13.5,fontWeight:tab===t.id?700:500,color:tab===t.id?T.text:T.dim,borderBottom:`2px solid ${tab===t.id?T.brand:"transparent"}`,marginBottom:-1,whiteSpace:"nowrap",transition:"color .15s"}}>{t.l}</div>))}
+            {TABS.map(t=>(<div key={t.id} onClick={()=>{setTab(t.id); if(t.id==="dialogs"){setOpenDlg(null);loadDialogs(c.id);}}} style={{padding:"11px 16px",cursor:"pointer",fontSize:13.5,fontWeight:tab===t.id?700:500,color:tab===t.id?T.text:T.dim,borderBottom:`2px solid ${tab===t.id?T.brand:"transparent"}`,marginBottom:-1,whiteSpace:"nowrap",transition:"color .15s"}}>{t.l}</div>))}
           </div>
 
           {tab==="info" && <Card>
@@ -305,6 +313,60 @@ export default function App() {
                 </div>))}
               </div>
             ))}
+          </Card>}
+
+          {tab==="dialogs" && <Card>
+            <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Диалоги клиентов</div>
+            <div style={{fontSize:12.5,color:T.dim,marginBottom:14}}>Все переписки бота. Смотрите, где клиенты не дошли до заказа.</div>
+            <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+              {[{k:"all",l:"Все"},{k:"done",l:"Дошли"},{k:"lost",l:"Не дошли"}].map(f=>(
+                <div key={f.k} onClick={()=>setDlgFilter(f.k)} style={{padding:"7px 14px",borderRadius:9,fontSize:12.5,fontWeight:600,cursor:"pointer",background:dlgFilter===f.k?T.brand:T.surface2,color:dlgFilter===f.k?"#fff":T.dim,border:`1px solid ${dlgFilter===f.k?T.brand:T.line}`}}>{f.l}</div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
+              {[{k:"all",l:"За всё время"},{k:"today",l:"Сегодня"},{k:"week",l:"Неделя"},{k:"month",l:"Месяц"}].map(f=>(
+                <div key={f.k} onClick={()=>{setDateFilter(f.k);setDateFrom("");setDateTo("");}} style={{padding:"6px 12px",borderRadius:8,fontSize:12,fontWeight:600,cursor:"pointer",background:dateFilter===f.k&&!dateFrom?T.brand2:T.surface2,color:dateFilter===f.k&&!dateFrom?"#fff":T.dim,border:`1px solid ${dateFilter===f.k&&!dateFrom?T.brand2:T.line}`}}>{f.l}</div>
+              ))}
+            </div>
+            <div style={{display:"flex",gap:8,marginBottom:16,alignItems:"center",flexWrap:"wrap"}}>
+              <span style={{fontSize:12,color:T.faint}}>период:</span>
+              <input type="date" value={dateFrom} onChange={e=>{setDateFrom(e.target.value);setDateFilter("custom");}} style={{...INP,width:"auto",padding:"7px 10px",fontSize:13}}/>
+              <span style={{color:T.faint}}>—</span>
+              <input type="date" value={dateTo} onChange={e=>{setDateTo(e.target.value);setDateFilter("custom");}} style={{...INP,width:"auto",padding:"7px 10px",fontSize:13}}/>
+            </div>
+            {loadingDlg && <div style={{color:T.dim,fontSize:13,padding:"20px 0",textAlign:"center"}}>Загружаю…</div>}
+            {(()=>{ 
+              const now=new Date();
+              const inDate=(d)=>{ 
+                if(dateFrom||dateTo){ const t=new Date(d.updated_at); if(dateFrom&&t<new Date(dateFrom))return false; if(dateTo&&t>new Date(dateTo+"T23:59:59"))return false; return true; }
+                if(dateFilter==="today"){ const t=new Date(d.updated_at); return t.toDateString()===now.toDateString(); }
+                if(dateFilter==="week"){ return (now-new Date(d.updated_at))<7*864e5; }
+                if(dateFilter==="month"){ return (now-new Date(d.updated_at))<31*864e5; }
+                return true;
+              };
+              const filtered=dialogs.filter(d=>(dlgFilter==="all"||(dlgFilter==="done"&&d.completed)||(dlgFilter==="lost"&&!d.completed))&&inDate(d));
+              if(!loadingDlg&&filtered.length===0) return <Empty text="Нет диалогов за период"/>;
+              return filtered.map(d=>(
+              <div key={d.id} style={{borderBottom:`1px solid ${T.line}`,padding:"12px 0"}}>
+                <div style={{display:"flex",alignItems:"center",gap:10}}>
+                  <div style={{width:9,height:9,borderRadius:"50%",background:d.completed?"#2BD980":T.amber,flexShrink:0}}/>
+                  <div onClick={()=>setOpenDlg(openDlg===d.id?null:d.id)} style={{flex:1,minWidth:0,cursor:"pointer"}}>
+                    <div style={{fontSize:13.5,fontWeight:600,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{d.user_label}</div>
+                    <div style={{fontSize:12,color:T.faint,whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{d.completed?"✓ заказ оформлен":"не дошёл"} · {d.msg_count} сообщ. · {new Date(d.updated_at).toLocaleDateString("ru")}</div>
+                  </div>
+                  {d.username && <a href={`https://t.me/${d.username}`} target="_blank" rel="noreferrer" style={{fontSize:12,fontWeight:600,color:"#fff",background:"#29A9EB",padding:"6px 11px",borderRadius:8,textDecoration:"none",flexShrink:0}}>Написать</a>}
+                  <div onClick={()=>setOpenDlg(openDlg===d.id?null:d.id)} style={{color:T.faint,fontSize:13,cursor:"pointer"}}>{openDlg===d.id?"▲":"▼"}</div>
+                </div>
+                {openDlg===d.id && <div style={{marginTop:12,padding:14,background:T.bg,borderRadius:12,border:`1px solid ${T.line}`,maxHeight:340,overflowY:"auto"}}>
+                  {d.history.map((m,i)=>(
+                    <div key={i} style={{marginBottom:10,display:"flex",justifyContent:m.role==="user"?"flex-start":"flex-end"}}>
+                      <div style={{maxWidth:"80%",padding:"8px 12px",borderRadius:12,fontSize:13,lineHeight:1.45,background:m.role==="user"?T.surface2:`linear-gradient(135deg,${T.brand},${T.brand2})`,color:m.role==="user"?T.text:"#fff"}}>{m.content}</div>
+                    </div>
+                  ))}
+                </div>}
+              </div>
+              ));
+            })()}
           </Card>}
 
           {tab==="bot" && <div style={{display:"grid",gap:14}}>
@@ -405,7 +467,7 @@ export default function App() {
         <div style={{display:"flex",alignItems:"center",gap:9}}><div style={{width:30,height:30,borderRadius:9,background:`linear-gradient(135deg,${T.brand},${T.brand2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>◆</div><span style={{fontSize:17,fontWeight:800,letterSpacing:-.4}}>ChatAIbot</span></div>
         <span onClick={logout} style={{color:T.dim,fontSize:13,cursor:"pointer"}}>Выйти</span>
       </div>
-      <div style={{padding:18}}>{Body}</div>
+      <div style={{padding:"20px 18px",display:"grid",gap:16}}>{Body}</div>
       <div style={{position:"fixed",bottom:0,left:0,right:0,background:T.surface+"F5",backdropFilter:"blur(14px)",borderTop:`1px solid ${T.line}`,display:"flex",justifyContent:"space-around",padding:"9px 0 11px",zIndex:100}}>
         {NAV.map(n=>(<div key={n.id} onClick={()=>{setPage(n.id);setSelected(null);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer",color:page===n.id?T.brand2:T.faint,position:"relative",padding:"3px 14px",transition:"color .15s"}}>
           <span style={{fontSize:19}}>{n.ic}</span><span style={{fontSize:10,fontWeight:600}}>{n.l}</span>
@@ -436,6 +498,6 @@ export default function App() {
           <div onClick={logout} style={{padding:"11px 14px",borderRadius:11,color:T.dim,fontSize:13.5,cursor:"pointer",fontWeight:500,transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color=T.text} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Выйти из панели</div>
         </div>
       </div>
-      <div style={{marginLeft:236,flex:1,padding:"32px 38px",maxWidth:1200}}>{Body}</div>
+      <div style={{marginLeft:236,flex:1,padding:"32px 38px",maxWidth:1200,display:"grid",gap:18,alignContent:"start"}}>{Body}</div>
     </div>);
 }
