@@ -400,8 +400,13 @@ export default function App() {
           </div>}
 
           {tab==="dialogs" && <Card>
-            <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Диалоги клиентов</div>
-            <div style={{fontSize:12.5,color:T.dim,marginBottom:14}}>Все переписки бота. Смотрите, где клиенты не дошли до заказа.</div>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:14}}>
+              <div>
+                <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Диалоги клиентов</div>
+                <div style={{fontSize:12.5,color:T.dim}}>Все переписки бота. Смотрите, где клиенты не дошли до заказа.</div>
+              </div>
+              <Btn kind="ghost" size="sm" onClick={()=>loadDialogs(c.id)} style={{flexShrink:0}}>🔄 Обновить</Btn>
+            </div>
             <div style={{display:"flex",gap:8,marginBottom:12,flexWrap:"wrap"}}>
               {[{k:"all",l:"Все"},{k:"done",l:"Дошли"},{k:"lost",l:"Не дошли"}].map(f=>(
                 <div key={f.k} onClick={()=>setDlgFilter(f.k)} style={{padding:"7px 14px",borderRadius:9,fontSize:12.5,fontWeight:600,cursor:"pointer",background:dlgFilter===f.k?T.brand:T.surface2,color:dlgFilter===f.k?"#fff":T.dim,border:`1px solid ${dlgFilter===f.k?T.brand:T.line}`}}>{f.l}</div>
