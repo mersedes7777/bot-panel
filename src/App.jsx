@@ -36,7 +36,7 @@ function Btn({children,onClick,kind="primary",size="md",style={},...p}) {
   return <button onClick={onClick} style={{borderRadius:11,border:"none",cursor:"pointer",fontWeight:650,letterSpacing:.1,transition:"transform .15s",...sizes[size],...kinds[kind],...style}} {...p}>{children}</button>;
 }
 function Card({children,style={},...p}) {
-  return <div style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:16,padding:20,...style}} {...p}>{children}</div>;
+  return <div style={{background:T.surface,border:`1px solid ${T.line}`,borderRadius:18,padding:18,...style}} {...p}>{children}</div>;
 }
 
 export default function App() {
@@ -467,7 +467,7 @@ export default function App() {
         <div style={{display:"flex",alignItems:"center",gap:9}}><div style={{width:30,height:30,borderRadius:9,background:`linear-gradient(135deg,${T.brand},${T.brand2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>◆</div><span style={{fontSize:17,fontWeight:800,letterSpacing:-.4}}>ChatAIbot</span></div>
         <span onClick={logout} style={{color:T.dim,fontSize:13,cursor:"pointer"}}>Выйти</span>
       </div>
-      <div style={{padding:"20px 18px",display:"grid",gap:16}}>{Body}</div>
+      <div style={{padding:18}}>{Body}</div>
       <div style={{position:"fixed",bottom:0,left:0,right:0,background:T.surface+"F5",backdropFilter:"blur(14px)",borderTop:`1px solid ${T.line}`,display:"flex",justifyContent:"space-around",padding:"9px 0 11px",zIndex:100}}>
         {NAV.map(n=>(<div key={n.id} onClick={()=>{setPage(n.id);setSelected(null);}} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:3,cursor:"pointer",color:page===n.id?T.brand2:T.faint,position:"relative",padding:"3px 14px",transition:"color .15s"}}>
           <span style={{fontSize:19}}>{n.ic}</span><span style={{fontSize:10,fontWeight:600}}>{n.l}</span>
@@ -498,6 +498,6 @@ export default function App() {
           <div onClick={logout} style={{padding:"11px 14px",borderRadius:11,color:T.dim,fontSize:13.5,cursor:"pointer",fontWeight:500,transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color=T.text} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Выйти из панели</div>
         </div>
       </div>
-      <div style={{marginLeft:236,flex:1,padding:"32px 38px",maxWidth:1200,display:"grid",gap:18,alignContent:"start"}}>{Body}</div>
+      <div style={{marginLeft:236,flex:1,padding:"32px 38px",maxWidth:1200}}>{Body}</div>
     </div>);
 }
