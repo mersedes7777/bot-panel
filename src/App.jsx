@@ -66,6 +66,10 @@ export default function App() {
   const [dateFilter, setDateFilter] = useState("all");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [analytics, setAnalytics] = useState(null);
+  const [loadingAna, setLoadingAna] = useState(false);
+  const [anaDateFrom, setAnaDateFrom] = useState("");
+  const [anaDateTo, setAnaDateTo] = useState("");
   const [mob, setMob] = useState(false);
 
   useEffect(() => { const f=()=>setMob(window.innerWidth<860); f(); addEventListener("resize",f); return()=>removeEventListener("resize",f); }, []);
@@ -102,6 +106,7 @@ export default function App() {
   useEffect(() => { if(logged) loadData(); }, [logged]);
   const loadMenu = async (id) => { try{ const r=await apiGet("/api/menu/"+id); setMenu(r.menu||[]); }catch{ setMenu([]); } };
   const loadDialogs = async (id) => { setLoadingDlg(true); try{ const r=await apiGet("/api/dialogs/"+id); setDialogs(r.dialogs||[]); }catch{ setDialogs([]); } setLoadingDlg(false); };
+  const loadAnalytics = async (id) => { setLoadingAna(true); try{ const r=await apiGet("/api/analytics/"+id); setAnalytics(r); }catch{ setAnalytics(null); } setLoadingAna(false); };
 
   const tokenCost = (c) => ((c.tokens||0)/1e6*(TOKEN_PRICE[c.config?.ai_model]||0.14));
   const income = clients.filter(c=>c.status==="active").reduce((s,c)=>s+(c.plan_price||0),0);
@@ -247,7 +252,7 @@ export default function App() {
 
       {/* ДЕТАЛИ */}
       {page==="clients" && selected && (()=>{ const c=selected;
-        const TABS=[{id:"info",l:"О заведении"},{id:"menu",l:"Меню"},{id:"dialogs",l:"Диалоги"},...(isAdmin?[{id:"bot",l:"Промпт"},{id:"channel",l:"Подключение"}]:[])];
+        const TABS=[{id:"info",l:"О заведении"},{id:"menu",l:"Меню"},{id:"stats",l:"Аналитика"},{id:"dialogs",l:"Диалоги"},...(isAdmin?[{id:"bot",l:"Промпт"},{id:"channel",l:"Подключение"}]:[])];
         return(<div>
           <Btn kind="subtle" onClick={()=>setSelected(null)} style={{marginBottom:14,paddingLeft:0}}>‹ Назад</Btn>
           <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:22}}>
@@ -255,7 +260,7 @@ export default function App() {
             <div><div style={{fontSize:22,fontWeight:800,letterSpacing:-.5}}>{c.name}</div><div style={{fontSize:13,color:T.dim}}>{c.city}</div></div>
           </div>
           <div style={{display:"flex",gap:6,marginBottom:22,borderBottom:`1px solid ${T.line}`,overflowX:"auto"}}>
-            {TABS.map(t=>(<div key={t.id} onClick={()=>{setTab(t.id); if(t.id==="dialogs"){setOpenDlg(null);loadDialogs(c.id);}}} style={{padding:"11px 16px",cursor:"pointer",fontSize:13.5,fontWeight:tab===t.id?700:500,color:tab===t.id?T.text:T.dim,borderBottom:`2px solid ${tab===t.id?T.brand:"transparent"}`,marginBottom:-1,whiteSpace:"nowrap",transition:"color .15s"}}>{t.l}</div>))}
+            {TABS.map(t=>(<div key={t.id} onClick={()=>{setTab(t.id); if(t.id==="dialogs"){setOpenDlg(null);loadDialogs(c.id);} if(t.id==="stats"){loadAnalytics(c.id);}}} style={{padding:"11px 16px",cursor:"pointer",fontSize:13.5,fontWeight:tab===t.id?700:500,color:tab===t.id?T.text:T.dim,borderBottom:`2px solid ${tab===t.id?T.brand:"transparent"}`,marginBottom:-1,whiteSpace:"nowrap",transition:"color .15s"}}>{t.l}</div>))}
           </div>
 
           {tab==="info" && <Card>
@@ -314,6 +319,85 @@ export default function App() {
               </div>
             ))}
           </Card>}
+
+          {tab==="stats" && <div style={{display:"grid",gap:14}}>
+            {loadingAna && <Card><div style={{color:T.dim,textAlign:"center",padding:20}}>Загружаю аналитику…</div></Card>}
+            {!loadingAna && analytics && (()=>{
+              const a=analytics;
+              const days=a.by_day||[];
+              const filtDays=days.filter(d=>{ if(anaDateFrom&&d.date<anaDateFrom)return false; if(anaDateTo&&d.date>anaDateTo)return false; return true; });
+              const maxRev=Math.max(1,...filtDays.map(d=>d.revenue));
+              const maxHour=Math.max(1,...(a.by_hour||[]).map(h=>h.count));
+              const periodRev=filtDays.reduce((s,d)=>s+d.revenue,0);
+              const periodCnt=filtDays.reduce((s,d)=>s+d.count,0);
+              return <>
+                {/* KPI карточки */}
+                <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(3,1fr)",gap:12}}>
+                  <Card style={{padding:16}}><div style={{fontSize:12,color:T.dim,marginBottom:6}}>Заказов</div><div style={{fontSize:26,fontWeight:800}}>{(anaDateFrom||anaDateTo)?periodCnt:a.orders_count}</div></Card>
+                  <Card style={{padding:16}}><div style={{fontSize:12,color:T.dim,marginBottom:6}}>Выручка</div><div style={{fontSize:26,fontWeight:800,color:T.green}}>{((anaDateFrom||anaDateTo)?periodRev:a.revenue).toLocaleString("ru")} ₽</div></Card>
+                  <Card style={{padding:16}}><div style={{fontSize:12,color:T.dim,marginBottom:6}}>Средний чек</div><div style={{fontSize:26,fontWeight:800}}>{a.avg_check.toLocaleString("ru")} ₽</div></Card>
+                </div>
+
+                {/* Календарь-фильтр */}
+                <Card>
+                  <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}>
+                    <span style={{fontSize:13,fontWeight:600}}>📅 Период:</span>
+                    <input type="date" value={anaDateFrom} onChange={e=>setAnaDateFrom(e.target.value)} style={{...INP,width:"auto",padding:"7px 10px",fontSize:13}}/>
+                    <span style={{color:T.faint}}>—</span>
+                    <input type="date" value={anaDateTo} onChange={e=>setAnaDateTo(e.target.value)} style={{...INP,width:"auto",padding:"7px 10px",fontSize:13}}/>
+                    {(anaDateFrom||anaDateTo)&&<Btn kind="subtle" size="sm" onClick={()=>{setAnaDateFrom("");setAnaDateTo("");}}>Сбросить</Btn>}
+                  </div>
+                </Card>
+
+                {/* График выручки по дням */}
+                <Card>
+                  <div style={{fontSize:15,fontWeight:700,marginBottom:16}}>Выручка по дням</div>
+                  {filtDays.length===0 ? <div style={{color:T.faint,fontSize:13,padding:"10px 0"}}>Нет данных за период</div> :
+                  <div style={{display:"flex",alignItems:"flex-end",gap:6,height:160,overflowX:"auto",paddingBottom:4}}>
+                    {filtDays.map((d,i)=>(
+                      <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,minWidth:36,flex:1}}>
+                        <div style={{fontSize:10,color:T.dim,whiteSpace:"nowrap"}}>{d.revenue>0?(d.revenue>=1000?(d.revenue/1000).toFixed(1)+"к":d.revenue):""}</div>
+                        <div title={`${d.date}: ${d.revenue}₽`} style={{width:"100%",maxWidth:34,height:Math.max(4,(d.revenue/maxRev)*120),background:`linear-gradient(180deg,${T.brand2},${T.brand})`,borderRadius:"6px 6px 0 0",transition:"height .3s"}}/>
+                        <div style={{fontSize:9.5,color:T.faint,whiteSpace:"nowrap"}}>{d.date.slice(5)}</div>
+                      </div>
+                    ))}
+                  </div>}
+                </Card>
+
+                {/* Топ товаров */}
+                <Card>
+                  <div style={{fontSize:15,fontWeight:700,marginBottom:14}}>Топ товаров</div>
+                  {(!a.top_items||a.top_items.length===0)?<div style={{color:T.faint,fontSize:13}}>Пока нет данных. Появятся после заказов.</div>:
+                  a.top_items.map((it,i)=>{
+                    const maxQty=Math.max(1,...a.top_items.map(x=>x.qty));
+                    return <div key={i} style={{marginBottom:12}}>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:13.5,marginBottom:5}}>
+                        <span style={{fontWeight:600}}>{i+1}. {it.name}</span>
+                        <span style={{color:T.dim}}>{it.qty} шт · {it.sum.toLocaleString("ru")} ₽</span>
+                      </div>
+                      <div style={{height:8,background:T.bg,borderRadius:6,overflow:"hidden"}}>
+                        <div style={{width:`${(it.qty/maxQty)*100}%`,height:"100%",background:`linear-gradient(90deg,${T.brand},${T.brand2})`,borderRadius:6}}/>
+                      </div>
+                    </div>;
+                  })}
+                </Card>
+
+                {/* Активность по часам */}
+                <Card>
+                  <div style={{fontSize:15,fontWeight:700,marginBottom:16}}>Активность по часам</div>
+                  <div style={{display:"flex",alignItems:"flex-end",gap:3,height:110}}>
+                    {(a.by_hour||[]).map((h,i)=>(
+                      <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                        <div title={`${h.hour}:00 — ${h.count}`} style={{width:"100%",height:Math.max(2,(h.count/maxHour)*80),background:h.count>0?T.cyan:T.line,borderRadius:"3px 3px 0 0"}}/>
+                        {i%3===0&&<div style={{fontSize:8.5,color:T.faint}}>{h.hour}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </>;
+            })()}
+            {!loadingAna && !analytics && <Card><div style={{color:T.dim,textAlign:"center",padding:20}}>Нет данных для аналитики</div></Card>}
+          </div>}
 
           {tab==="dialogs" && <Card>
             <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Диалоги клиентов</div>
