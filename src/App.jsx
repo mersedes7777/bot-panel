@@ -72,6 +72,8 @@ export default function App() {
   const [loadingAna, setLoadingAna] = useState(false);
   const [anaDateFrom, setAnaDateFrom] = useState("");
   const [anaDateTo, setAnaDateTo] = useState("");
+  const [testChat, setTestChat] = useState([]);
+  const [testTyping, setTestTyping] = useState(false);
   const [mob, setMob] = useState(false);
 
   useEffect(() => { const f=()=>setMob(window.innerWidth<860); f(); addEventListener("resize",f); return()=>removeEventListener("resize",f); }, []);
@@ -106,6 +108,11 @@ export default function App() {
     setLoading(false);
   };
   useEffect(() => { if(logged) loadData(); }, [logged]);
+  useEffect(() => {
+    document.body.style.margin="0";
+    document.body.style.overflowX="hidden";
+    document.documentElement.style.overflowX="hidden";
+  }, []);
   const loadMenu = async (id) => { try{ const r=await apiGet("/api/menu/"+id); setMenu(r.menu||[]); }catch{ setMenu([]); } };
   const loadDialogs = async (id) => { setLoadingDlg(true); try{ const r=await apiGet("/api/dialogs/"+id); setDialogs(r.dialogs||[]); }catch{ setDialogs([]); } setLoadingDlg(false); };
   const loadAnalytics = async (id) => { setLoadingAna(true); try{ const r=await apiGet("/api/analytics/"+id); setAnalytics(r); }catch{ setAnalytics(null); } setLoadingAna(false); };
@@ -201,6 +208,22 @@ export default function App() {
             </div>
           ))}
         </Card>
+        {isAdmin && clients.length>0 && <Card>
+          <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>Сравнение заведений</div>
+          <div style={{fontSize:12.5,color:T.dim,marginBottom:16}}>Кто приносит больше заказов</div>
+          {[...clients].sort((a,b)=>(b.orders_count||0)-(a.orders_count||0)).map((c,i)=>{
+            const maxO=Math.max(1,...clients.map(x=>x.orders_count||0));
+            return <div key={c.id} style={{marginBottom:13}}>
+              <div style={{display:"flex",justifyContent:"space-between",fontSize:13.5,marginBottom:5}}>
+                <span style={{fontWeight:600}}>{i+1}. {c.emoji} {c.name}</span>
+                <span style={{color:T.dim}}>{c.orders_count||0} заказов · {c.dialogs_count||0} диалогов</span>
+              </div>
+              <div style={{height:8,background:T.bg,borderRadius:6,overflow:"hidden"}}>
+                <div style={{width:`${((c.orders_count||0)/maxO)*100}%`,height:"100%",background:`linear-gradient(90deg,${T.brand},${T.brand2})`,borderRadius:6}}/>
+              </div>
+            </div>;
+          })}
+        </Card>}
       </div>}
 
       {/* ЗАКАЗЫ */}
@@ -371,10 +394,11 @@ export default function App() {
               const periodCnt=filtDays.reduce((s,d)=>s+d.count,0);
               return <>
                 {/* KPI карточки */}
-                <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(3,1fr)",gap:12}}>
+                <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(4,1fr)",gap:12}}>
                   <Card style={{padding:16}}><div style={{fontSize:12,color:T.dim,marginBottom:6}}>Заказов</div><div style={{fontSize:26,fontWeight:800}}>{(anaDateFrom||anaDateTo)?periodCnt:a.orders_count}</div></Card>
                   <Card style={{padding:16}}><div style={{fontSize:12,color:T.dim,marginBottom:6}}>Выручка</div><div style={{fontSize:26,fontWeight:800,color:T.green}}>{((anaDateFrom||anaDateTo)?periodRev:a.revenue).toLocaleString("ru")} ₽</div></Card>
                   <Card style={{padding:16}}><div style={{fontSize:12,color:T.dim,marginBottom:6}}>Средний чек</div><div style={{fontSize:26,fontWeight:800}}>{a.avg_check.toLocaleString("ru")} ₽</div></Card>
+                  <Card style={{padding:16}}><div style={{fontSize:12,color:T.dim,marginBottom:6}}>Конверсия</div><div style={{fontSize:26,fontWeight:800,color:T.brand2}}>{a.conversion||0}%</div><div style={{fontSize:10.5,color:T.faint,marginTop:2}}>{a.converted_dialogs||0} из {a.total_dialogs||0} диалогов</div></Card>
                 </div>
 
                 {/* Календарь-фильтр */}
@@ -518,6 +542,30 @@ export default function App() {
                 <Btn kind="ghost" size="sm" onClick={()=>{ navigator.clipboard.writeText(report); notify("Скопировано ✓"); }} style={{marginTop:10}}>📋 Скопировать</Btn>
               </div>}
             </Card>
+            <Card>
+              <div style={{fontSize:15,fontWeight:700,marginBottom:4}}>💬 Тест-чат с ботом</div>
+              <div style={{fontSize:12.5,color:T.dim,marginBottom:14}}>Проверьте как отвечает бот, не выходя в Telegram.</div>
+              <div style={{background:T.bg,borderRadius:12,border:`1px solid ${T.line}`,padding:12,maxHeight:300,overflowY:"auto",marginBottom:10,minHeight:80}}>
+                {testChat.length===0 && <div style={{color:T.faint,fontSize:13,textAlign:"center",padding:"20px 0"}}>Напишите боту сообщение для теста</div>}
+                {testChat.map((m,i)=>(
+                  <div key={i} style={{marginBottom:9,display:"flex",justifyContent:m.role==="user"?"flex-end":"flex-start"}}>
+                    <div style={{maxWidth:"82%",padding:"8px 12px",borderRadius:12,fontSize:13,lineHeight:1.45,whiteSpace:"pre-wrap",background:m.role==="user"?`linear-gradient(135deg,${T.brand},${T.brand2})`:T.surface2,color:m.role==="user"?"#fff":T.text}}>{m.content}</div>
+                  </div>
+                ))}
+                {testTyping && <div style={{color:T.faint,fontSize:12,padding:"4px 0"}}>Бот печатает…</div>}
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <Field id="test-input" placeholder="Сообщение боту..." onKeyDown={e=>{ if(e.key==="Enter"){ document.getElementById("test-send").click(); } }}/>
+                <Btn id="test-send" onClick={async()=>{
+                  const inp=document.getElementById("test-input"); const txt=inp.value.trim(); if(!txt) return;
+                  const newHist=[...testChat,{role:"user",content:txt}]; setTestChat(newHist); inp.value=""; setTestTyping(true);
+                  try{ const r=await apiPost("/api/test-chat",{client_id:c.id,history:newHist}); setTestChat([...newHist,{role:"assistant",content:r.reply}]); }
+                  catch{ setTestChat([...newHist,{role:"assistant",content:"(ошибка — бот не ответил)"}]); }
+                  setTestTyping(false);
+                }}>→</Btn>
+              </div>
+              {testChat.length>0 && <Btn kind="subtle" size="sm" onClick={()=>setTestChat([])} style={{marginTop:8}}>Очистить</Btn>}
+            </Card>
           </div>}
 
           {tab==="channel" && <div style={{display:"grid",gap:14}}>
@@ -589,7 +637,7 @@ export default function App() {
 
   // ── МОБИЛЬНЫЙ ──
   if (mob) return (
-    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:fontStack,paddingBottom:78}}>
+    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:fontStack,paddingBottom:78,overflowX:"hidden",maxWidth:"100vw",boxSizing:"border-box"}}>
       <style>{`@keyframes sl{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}`}</style>
       <div style={{padding:"16px 18px",borderBottom:`1px solid ${T.line}`,display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:T.bg+"F0",backdropFilter:"blur(12px)",zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:9}}><div style={{width:30,height:30,borderRadius:9,background:`linear-gradient(135deg,${T.brand},${T.brand2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>◆</div><span style={{fontSize:17,fontWeight:800,letterSpacing:-.4}}>ChatAIbot</span></div>
@@ -605,7 +653,7 @@ export default function App() {
 
   // ── ДЕСКТОП ──
   return (
-    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:fontStack,display:"flex"}}>
+    <div style={{minHeight:"100vh",background:T.bg,color:T.text,fontFamily:fontStack,display:"flex",overflowX:"hidden",maxWidth:"100vw",boxSizing:"border-box"}}>
       <style>{`@keyframes sl{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}} *::-webkit-scrollbar{width:8px;height:8px}*::-webkit-scrollbar-thumb{background:${T.line};border-radius:4px}`}</style>
       <div style={{width:236,background:T.surface,borderRight:`1px solid ${T.line}`,position:"fixed",top:0,left:0,height:"100vh",display:"flex",flexDirection:"column",padding:"0 0 18px"}}>
         <div style={{padding:"24px 22px",display:"flex",alignItems:"center",gap:11}}>
