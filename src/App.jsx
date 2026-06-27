@@ -59,6 +59,7 @@ export default function App() {
   const [addingClient, setAddingClient] = useState(false);
   const [loading, setLoading] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
+  const [bulkAdd, setBulkAdd] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [report, setReport] = useState("");
   const [dialogs, setDialogs] = useState([]);
@@ -332,10 +333,22 @@ export default function App() {
           </Card>}
 
           {tab==="menu" && <Card>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:18,gap:8,flexWrap:"wrap"}}>
               <div><div style={{fontSize:15,fontWeight:700}}>Меню</div><div style={{fontSize:12.5,color:T.dim}}>{menu.length} позиций · бот обновляется сразу</div></div>
-              <Btn size="sm" onClick={()=>setAddingItem(true)}>+ Добавить</Btn>
+              <div style={{display:"flex",gap:8}}>
+                <Btn size="sm" kind="ghost" onClick={()=>setBulkAdd(!bulkAdd)}>Списком</Btn>
+                <Btn size="sm" onClick={()=>setAddingItem(true)}>+ Добавить</Btn>
+              </div>
             </div>
+            {bulkAdd && <div style={{background:T.bg,borderRadius:13,padding:16,marginBottom:16,border:`1px solid ${T.brand}40`}}>
+              <div style={{fontSize:13,fontWeight:600,marginBottom:8}}>Добавить меню списком</div>
+              <div style={{fontSize:11.5,color:T.faint,marginBottom:10,lineHeight:1.5}}>Каждая позиция с новой строки в формате: <b>Название - цена</b><br/>Категории отмечайте так: <b>== Пицца ==</b></div>
+              <textarea id="bulk-text" rows={8} placeholder={"== Пицца ==\nМаргарита - 450\nПепперони - 550\n== Напитки ==\nКола - 120"} style={{...INP,resize:"vertical",fontFamily:"monospace",fontSize:13,lineHeight:1.6,marginBottom:10}}/>
+              <div style={{display:"flex",gap:9}}>
+                <Btn size="sm" onClick={async()=>{ const text=document.getElementById("bulk-text").value.trim(); if(!text){notify("Вставьте список");return;} notify("Добавляю…"); try{ const r=await apiPost("/api/menu-bulk-add",{client_id:c.id,text}); notify(`Добавлено: ${r.added}`); setBulkAdd(false); loadMenu(c.id); }catch{ notify("Ошибка"); } }}>Добавить всё</Btn>
+                <Btn size="sm" kind="ghost" onClick={()=>setBulkAdd(false)}>Отмена</Btn>
+              </div>
+            </div>}
             {addingItem && <div style={{background:T.bg,borderRadius:13,padding:16,marginBottom:16,border:`1px solid ${T.brand}40`}}>
               <Field id="ni-name" placeholder="Название позиции" style={{marginBottom:10}}/>
               <div style={{display:"flex",gap:10,marginBottom:12}}>
@@ -347,10 +360,15 @@ export default function App() {
                 <Btn size="sm" kind="ghost" onClick={()=>setAddingItem(false)}>Отмена</Btn>
               </div>
             </div>}
-            {menu.length===0 && !addingItem && <Empty text="Меню пустое — добавьте первую позицию"/>}
-            {Object.entries(menu.reduce((acc,m)=>{ const k=m.category||"Прочее"; (acc[k]=acc[k]||[]).push(m); return acc; },{})).map(([cat,items])=>(
+            {menu.length===0 && !addingItem && !bulkAdd && <Empty text="Меню пустое — добавьте позиции"/>}
+            {Object.entries(menu.reduce((acc,m)=>{ const k=m.category||"Прочее"; (acc[k]=acc[k]||[]).push(m); return acc; },{})).map(([cat,items])=>{
+              const allOn=items.every(x=>x.available);
+              return(
               <div key={cat} style={{marginBottom:18}}>
-                <div style={{fontSize:12,fontWeight:700,color:T.brand2,textTransform:"uppercase",letterSpacing:.5,margin:"6px 0 4px"}}>{cat} <span style={{color:T.faint}}>· {items.length}</span></div>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",margin:"6px 0 4px"}}>
+                  <div style={{fontSize:12,fontWeight:700,color:T.brand2,textTransform:"uppercase",letterSpacing:.5}}>{cat} <span style={{color:T.faint}}>· {items.length}</span></div>
+                  <div onClick={async()=>{ await apiPost("/api/menu-category-toggle",{client_id:c.id,category:cat,available:!allOn}); setMenu(menu.map(x=>(x.category||"Прочее")===cat?{...x,available:!allOn}:x)); notify(allOn?`«${cat}» в стоп-лист`:`«${cat}» включена`); }} style={{fontSize:11,fontWeight:600,color:allOn?T.amber:T.green,cursor:"pointer",padding:"3px 10px",borderRadius:7,border:`1px solid ${T.line}`}}>{allOn?"⏸ Стоп вся категория":"▶ Включить все"}</div>
+                </div>
                 {items.map(m=>(<div key={m.id} style={{display:"flex",alignItems:"center",gap:11,padding:"12px 0",borderBottom:`1px solid ${T.line}`,opacity:m.available?1:0.45}}>
                   <label style={{cursor:"pointer",flexShrink:0}} title="Загрузить фото">
                     {m.photo_url
@@ -379,7 +397,7 @@ export default function App() {
                   <div onClick={async()=>{ if(confirm("Удалить позицию?")){ await apiPost("/api/delete-menu-item",{id:m.id}); setMenu(menu.filter(x=>x.id!==m.id)); notify("Удалено"); } }} style={{cursor:"pointer",color:T.faint,fontSize:20,flexShrink:0,padding:"0 2px"}} onMouseEnter={e=>e.currentTarget.style.color=T.red} onMouseLeave={e=>e.currentTarget.style.color=T.faint}>×</div>
                 </div>))}
               </div>
-            ))}
+            );})}
           </Card>}
 
           {tab==="stats" && <div style={{display:"grid",gap:14}}>
@@ -409,6 +427,15 @@ export default function App() {
                     <span style={{color:T.faint}}>—</span>
                     <input type="date" value={anaDateTo} onChange={e=>setAnaDateTo(e.target.value)} style={{...INP,width:"auto",padding:"7px 10px",fontSize:13}}/>
                     {(anaDateFrom||anaDateTo)&&<Btn kind="subtle" size="sm" onClick={()=>{setAnaDateFrom("");setAnaDateTo("");}}>Сбросить</Btn>}
+                    <Btn kind="ghost" size="sm" onClick={async()=>{
+                      notify("Готовлю файл…");
+                      try{
+                        const res=await fetch(API+"/api/export-orders/"+c.id,{headers:{"X-Admin-Password":pwd}});
+                        const blob=await res.blob(); const url=URL.createObjectURL(blob);
+                        const a=document.createElement("a"); a.href=url; a.download="zakazy.csv"; a.click(); URL.revokeObjectURL(url);
+                        notify("Файл скачан ✓");
+                      }catch{ notify("Ошибка экспорта"); }
+                    }} style={{marginLeft:"auto"}}>📥 Экспорт в Excel</Btn>
                   </div>
                 </Card>
 
