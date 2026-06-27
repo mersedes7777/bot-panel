@@ -55,6 +55,8 @@ export default function App() {
   const [tab, setTab] = useState("info");
   const [toast, setToast] = useState("");
   const [orderFilter, setOrderFilter] = useState("all");
+  const [orderSearch, setOrderSearch] = useState("");
+  const [addingClient, setAddingClient] = useState(false);
   const [loading, setLoading] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
@@ -204,12 +206,13 @@ export default function App() {
       {/* ЗАКАЗЫ */}
       {page==="orders" && <div>
         <Header title="Заказы" sub="Управление статусами"/>
+        <input value={orderSearch} onChange={e=>setOrderSearch(e.target.value)} placeholder="🔍 Поиск по заказам (имя, адрес, телефон, блюдо)..." style={{...INP,marginBottom:14}}/>
         <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
           {["all",...Object.keys(STATUS)].map(f=>(
             <button key={f} onClick={()=>setOrderFilter(f)} style={{padding:"8px 15px",borderRadius:20,border:`1px solid ${orderFilter===f?T.brand:T.line}`,background:orderFilter===f?T.brandSoft:"transparent",color:orderFilter===f?T.brand2:T.dim,fontSize:12.5,fontWeight:600,cursor:"pointer",transition:"all .15s"}}>{f==="all"?"Все":STATUS[f].l}</button>))}
         </div>
         <div style={{display:"grid",gap:13}}>
-          {orders.filter(o=>orderFilter==="all"||o.status===orderFilter).map(o=>{ const st=STATUS[o.status]||STATUS.new; return(
+          {orders.filter(o=>(orderFilter==="all"||o.status===orderFilter)&&(!orderSearch||(o.items_text||"").toLowerCase().includes(orderSearch.toLowerCase()))).map(o=>{ const st=STATUS[o.status]||STATUS.new; return(
             <Card key={o.id} style={{borderLeft:`3px solid ${st.c}`,padding:18}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:11,gap:10}}>
                 <div><div style={{fontSize:16,fontWeight:750,letterSpacing:-.3}}>Заказ №{o.order_number}</div>
@@ -222,13 +225,42 @@ export default function App() {
                   style={{padding:"6px 12px",borderRadius:9,border:`1px solid ${o.status===s?STATUS[s].c:T.line}`,background:o.status===s?STATUS[s].c+"1A":"transparent",color:o.status===s?STATUS[s].c:T.dim,fontSize:11.5,fontWeight:600,cursor:"pointer"}}>{STATUS[s].l}</button>))}
               </div>
             </Card>);})}
-          {orders.filter(o=>orderFilter==="all"||o.status===orderFilter).length===0 && <Empty text="Нет заказов в этой категории"/>}
+          {orders.filter(o=>(orderFilter==="all"||o.status===orderFilter)&&(!orderSearch||(o.items_text||"").toLowerCase().includes(orderSearch.toLowerCase()))).length===0 && <Empty text="Нет заказов"/>}
         </div>
       </div>}
 
       {/* КЛИЕНТЫ */}
       {page==="clients" && !selected && <div>
         <Header title={isAdmin?"Заведения":"Ваше заведение"} sub={isAdmin?"Подключённые бизнесы":"Управление и меню"}/>
+        {isAdmin && <div style={{marginBottom:16}}>
+          {!addingClient
+            ? <Btn onClick={()=>setAddingClient(true)}>+ Добавить бота</Btn>
+            : <Card>
+                <div style={{fontSize:15,fontWeight:700,marginBottom:14}}>Новый бот</div>
+                <div style={{display:"grid",gap:10}}>
+                  <Field id="nc-name" placeholder="Название (напр. Пиццерия Марио)"/>
+                  <Field id="nc-token" placeholder="Токен бота от @BotFather"/>
+                  <Field id="nc-city" placeholder="Город / направление (необязательно)"/>
+                  <select id="nc-type" style={{...INP}}><option value="order">Приём заказов (еда, цветы, товары)</option><option value="lead">Сбор заявок (услуги, лиды)</option></select>
+                  <div style={{display:"flex",gap:10}}>
+                    <Btn onClick={async()=>{
+                      const name=document.getElementById("nc-name").value.trim();
+                      const token=document.getElementById("nc-token").value.trim();
+                      const city=document.getElementById("nc-city").value.trim();
+                      const business_type=document.getElementById("nc-type").value;
+                      if(!name||!token){ notify("Заполните имя и токен"); return; }
+                      notify("Создаю бота…");
+                      try{ const r=await apiPost("/api/create-client",{name,token,city,business_type,base_url:API});
+                        notify(r.webhook?"Бот создан и подключён ✓":"Бот создан (webhook вручную)");
+                        setAddingClient(false); loadData();
+                      }catch{ notify("Ошибка создания"); }
+                    }}>Создать</Btn>
+                    <Btn kind="ghost" onClick={()=>setAddingClient(false)}>Отмена</Btn>
+                  </div>
+                  <div style={{fontSize:11.5,color:T.faint,lineHeight:1.5}}>После создания бот сразу заработает. Промпт и меню настроите в карточке бота.</div>
+                </div>
+              </Card>}
+        </div>}
         <div style={{display:"grid",gap:13}}>
           {clients.map(c=>(
             <Card key={c.id} hover style={{cursor:"pointer"}} onClick={()=>{setSelected(c);setTab("info");loadMenu(c.id);}}>
