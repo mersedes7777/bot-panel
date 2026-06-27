@@ -289,7 +289,14 @@ export default function App() {
           <Btn kind="subtle" onClick={()=>setSelected(null)} style={{marginBottom:14,paddingLeft:0}}>‹ Назад</Btn>
           <div style={{display:"flex",alignItems:"center",gap:14,marginBottom:22}}>
             <div style={{width:54,height:54,borderRadius:15,background:`linear-gradient(135deg,${T.surface2},${T.bg})`,border:`1px solid ${T.line}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:26}}>{c.emoji}</div>
-            <div><div style={{fontSize:22,fontWeight:800,letterSpacing:-.5}}>{c.name}</div><div style={{fontSize:13,color:T.dim}}>{c.city}</div></div>
+            <div style={{flex:1}}><div style={{fontSize:22,fontWeight:800,letterSpacing:-.5}}>{c.name}</div><div style={{fontSize:13,color:T.dim}}>{c.city}</div></div>
+            {isAdmin && <Btn kind="danger" size="sm" onClick={async()=>{
+              if(confirm(`Удалить бота «${c.name}»? Это удалит все его данные (заказы, диалоги, меню) и отключит бота. Действие необратимо.`)){
+                notify("Удаляю…");
+                try{ await apiPost("/api/delete-client",{client_id:c.id}); notify("Бот удалён"); setSelected(null); loadData(); }
+                catch{ notify("Ошибка удаления"); }
+              }
+            }}>Удалить</Btn>}
           </div>
           <div style={{display:"flex",gap:6,marginBottom:22,borderBottom:`1px solid ${T.line}`,overflowX:"auto"}}>
             {TABS.map(t=>(<div key={t.id} onClick={()=>{setTab(t.id); if(t.id==="dialogs"){setOpenDlg(null);loadDialogs(c.id);} if(t.id==="stats"){loadAnalytics(c.id);}}} style={{padding:"11px 16px",cursor:"pointer",fontSize:13.5,fontWeight:tab===t.id?700:500,color:tab===t.id?T.text:T.dim,borderBottom:`2px solid ${tab===t.id?T.brand:"transparent"}`,marginBottom:-1,whiteSpace:"nowrap",transition:"color .15s"}}>{t.l}</div>))}
