@@ -440,32 +440,35 @@ export default function App() {
                 </Card>
 
                 {/* График выручки по дням */}
-                <Card>
+                <Card style={{overflow:"hidden"}}>
                   <div style={{fontSize:15,fontWeight:700,marginBottom:16}}>Выручка по дням</div>
                   {filtDays.length===0 ? <div style={{color:T.faint,fontSize:13,padding:"10px 0"}}>Нет данных за период</div> :
-                  <div style={{display:"flex",alignItems:"flex-end",gap:6,height:160,overflowX:"auto",paddingBottom:4}}>
+                  <div style={{overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}>
+                    <div style={{display:"flex",alignItems:"flex-end",gap:6,height:160,width:"max-content",minWidth:"100%"}}>
                     {filtDays.map((d,i)=>(
-                      <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,minWidth:36,flex:1}}>
+                      <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,width:38,flexShrink:0}}>
                         <div style={{fontSize:10,color:T.dim,whiteSpace:"nowrap"}}>{d.revenue>0?(d.revenue>=1000?(d.revenue/1000).toFixed(1)+"к":d.revenue):""}</div>
-                        <div title={`${d.date}: ${d.revenue}₽`} style={{width:"100%",maxWidth:34,height:Math.max(4,(d.revenue/maxRev)*120),background:`linear-gradient(180deg,${T.brand2},${T.brand})`,borderRadius:"6px 6px 0 0",transition:"height .3s"}}/>
+                        <div title={`${d.date}: ${d.revenue}₽`} style={{width:30,height:Math.max(4,(d.revenue/maxRev)*120),background:`linear-gradient(180deg,${T.brand2},${T.brand})`,borderRadius:"6px 6px 0 0",transition:"height .3s"}}/>
                         <div style={{fontSize:9.5,color:T.faint,whiteSpace:"nowrap"}}>{d.date.slice(5)}</div>
                       </div>
                     ))}
+                    </div>
                   </div>}
+                  <div style={{fontSize:11,color:T.faint,marginTop:8}}>← листайте вбок, чтобы видеть все дни</div>
                 </Card>
 
                 {/* Топ товаров */}
-                <Card>
+                <Card style={{overflow:"hidden"}}>
                   <div style={{fontSize:15,fontWeight:700,marginBottom:14}}>Топ товаров</div>
                   {(!a.top_items||a.top_items.length===0)?<div style={{color:T.faint,fontSize:13}}>Пока нет данных. Появятся после заказов.</div>:
                   a.top_items.map((it,i)=>{
                     const maxQty=Math.max(1,...a.top_items.map(x=>x.qty));
                     return <div key={i} style={{marginBottom:12}}>
-                      <div style={{display:"flex",justifyContent:"space-between",fontSize:13.5,marginBottom:5}}>
-                        <span style={{fontWeight:600}}>{i+1}. {it.name}</span>
-                        <span style={{color:T.dim}}>{it.qty} шт · {it.sum.toLocaleString("ru")} ₽</span>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:13,marginBottom:5,gap:8}}>
+                        <span style={{fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",flex:1,minWidth:0}}>{i+1}. {it.name}</span>
+                        <span style={{color:T.dim,flexShrink:0,fontSize:12}}>{it.qty} шт · {it.sum.toLocaleString("ru")} ₽</span>
                       </div>
-                      <div style={{height:8,background:T.bg,borderRadius:6,overflow:"hidden"}}>
+                      <div style={{height:8,background:T.bg,borderRadius:6,overflow:"hidden",width:"100%"}}>
                         <div style={{width:`${(it.qty/maxQty)*100}%`,height:"100%",background:`linear-gradient(90deg,${T.brand},${T.brand2})`,borderRadius:6}}/>
                       </div>
                     </div>;
@@ -475,7 +478,7 @@ export default function App() {
                 {/* Активность по часам */}
                 <Card>
                   <div style={{fontSize:15,fontWeight:700,marginBottom:16}}>Активность по часам</div>
-                  <div style={{display:"flex",alignItems:"flex-end",gap:3,height:110}}>
+                  <div style={{display:"flex",alignItems:"flex-end",gap:3,height:110,overflow:"hidden"}}>
                     {(a.by_hour||[]).map((h,i)=>(
                       <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
                         <div title={`${h.hour}:00 — ${h.count}`} style={{width:"100%",height:Math.max(2,(h.count/maxHour)*80),background:h.count>0?T.cyan:T.line,borderRadius:"3px 3px 0 0"}}/>
