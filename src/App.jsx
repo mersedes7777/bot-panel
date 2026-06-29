@@ -230,26 +230,6 @@ export default function App() {
       {/* ЗАКАЗЫ */}
       {page==="orders" && <div>
         <Header title="Заказы" sub="Управление статусами"/>
-        {/* мини-аналитика заказов по дням */}
-        {orders.length>0 && (()=>{
-          const byDay={};
-          orders.forEach(o=>{ const d=(o.created_at||"").slice(0,10); if(d) byDay[d]=(byDay[d]||0)+1; });
-          const days=Object.entries(byDay).sort().slice(-14);
-          const maxD=Math.max(1,...days.map(d=>d[1]));
-          if(days.length<2) return null;
-          return <Card style={{marginBottom:16}}>
-            <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>Заказы по дням</div>
-            <div style={{display:"flex",alignItems:"flex-end",gap:5,height:90}}>
-              {days.map(([date,cnt],i)=>(
-                <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-                  <div style={{fontSize:10,color:T.dim,fontWeight:600}}>{cnt}</div>
-                  <div title={`${date}: ${cnt} заказов`} style={{width:"100%",maxWidth:24,height:Math.max(4,(cnt/maxD)*60),background:`linear-gradient(180deg,${T.brand2},${T.brand})`,borderRadius:"4px 4px 0 0"}}/>
-                  <div style={{fontSize:8.5,color:T.faint}}>{date.slice(5)}</div>
-                </div>
-              ))}
-            </div>
-          </Card>;
-        })()}
         <input value={orderSearch} onChange={e=>setOrderSearch(e.target.value)} placeholder="🔍 Поиск по заказам (имя, адрес, телефон, блюдо)..." style={{...INP,marginBottom:14}}/>
         <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
           {["all",...Object.keys(STATUS)].map(f=>(
@@ -481,7 +461,24 @@ export default function App() {
                   <div style={{fontSize:11,color:T.faint,marginTop:8}}>← листайте вбок, чтобы видеть все дни</div>
                 </Card>
 
-                {/* Топ товаров */}
+                {/* Заказов по дням */}
+                <Card style={{overflow:"hidden"}}>
+                  <div style={{fontSize:15,fontWeight:700,marginBottom:16}}>Заказов по дням</div>
+                  {filtDays.length===0 ? <div style={{color:T.faint,fontSize:13,padding:"10px 0"}}>Нет данных за период</div> :
+                  <div style={{overflowX:"auto",paddingBottom:4,WebkitOverflowScrolling:"touch"}}>
+                    <div style={{display:"flex",alignItems:"flex-end",gap:6,height:150,width:"max-content",minWidth:"100%"}}>
+                    {filtDays.map((d,i)=>{
+                      const maxC=Math.max(1,...filtDays.map(x=>x.count));
+                      return <div key={i} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:6,width:38,flexShrink:0}}>
+                        <div style={{fontSize:11,color:T.cyan,fontWeight:700}}>{d.count||""}</div>
+                        <div title={`${d.date}: ${d.count} заказов`} style={{width:30,height:Math.max(4,(d.count/maxC)*110),background:`linear-gradient(180deg,${T.cyan},${T.brand2})`,borderRadius:"6px 6px 0 0",transition:"height .3s"}}/>
+                        <div style={{fontSize:9.5,color:T.faint,whiteSpace:"nowrap"}}>{d.date.slice(5)}</div>
+                      </div>;
+                    })}
+                    </div>
+                  </div>}
+                  <div style={{fontSize:11,color:T.faint,marginTop:8}}>← листайте вбок</div>
+                </Card>
                 <Card style={{overflow:"hidden"}}>
                   <div style={{fontSize:15,fontWeight:700,marginBottom:14}}>Топ товаров</div>
                   {(!a.top_items||a.top_items.length===0)?<div style={{color:T.faint,fontSize:13}}>Пока нет данных. Появятся после заказов.</div>:
