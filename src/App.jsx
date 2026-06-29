@@ -14,7 +14,7 @@ const STATUS = {
   new:{l:"Новый",c:"#5B8DEF"}, accepted:{l:"Принят",c:"#9D7BFF"}, cooking:{l:"Готовится",c:"#FFB020"},
   delivering:{l:"В пути",c:"#3DD6E8"}, done:{l:"Выполнен",c:"#2BD980"}, rejected:{l:"Отклонён",c:"#FF5C5C"},
 };
-const TOKEN_PRICE = { deepseek:0.14, "claude-haiku":1.0, "claude-sonnet":3.0 };
+const TOKEN_PRICE = { deepseek:13, "claude-haiku":95, "claude-sonnet":285 }; // руб за 1М токенов
 
 const FONT = "'Inter','SF Pro Display',-apple-system,sans-serif";
 const INP = {background:T.bg,border:`1px solid ${T.line}`,borderRadius:11,padding:"12px 14px",color:T.text,fontSize:16,outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color .2s",fontFamily:FONT};
@@ -177,13 +177,12 @@ export default function App() {
         <Header title="Обзор" sub={isAdmin?"Сводка по всем заведениям":"Сводка по вашему заведению"}
           right={<div style={{display:"flex",gap:9}}>
             <Btn kind="ghost" size="md" onClick={loadData}>Обновить</Btn>
-            {isAdmin && <Btn size="md" onClick={async()=>{ notify("Переподключаю ботов…"); try{ const r=await apiPost("/api/reconnect-webhook",{base_url:API}); notify(`Подключено: ${r.results?.filter(x=>x.ok).length||0}/${r.results?.length||0}`); }catch{ notify("Ошибка"); } }}>Переподключить ботов</Btn>}
           </div>}/>
         <div style={{display:"grid",gridTemplateColumns:mob?"1fr 1fr":"repeat(4,1fr)",gap:14,marginBottom:18}}>
           {isAdmin ? <>
-            <Stat label="Доход / мес" value={`$${income}`} accent={T.brand}/>
-            <Stat label="Расход AI" value={`$${cost.toFixed(2)}`} accent={T.red}/>
-            <Stat label="Прибыль" value={`$${(income-cost).toFixed(2)}`} accent={T.green}/>
+            <Stat label="Доход / мес" value={`${income} ₽`} accent={T.brand}/>
+            <Stat label="Расход AI" value={`${cost.toFixed(0)} ₽`} accent={T.red}/>
+            <Stat label="Прибыль" value={`${(income-cost).toFixed(0)} ₽`} accent={T.green}/>
             <Stat label="Заведений" value={clients.length} accent={T.amber}/>
           </> : <>
             <Stat label="Заказов" value={clients.reduce((s,c)=>s+(c.orders_count||0),0)} accent={T.green}/>
@@ -327,7 +326,7 @@ export default function App() {
           </div>
 
           {tab==="info" && <Card>
-            {[["Название",c.name],["Город",c.city],["Тариф",`${c.plan} · $${c.plan_price}/мес`],["Статус",c.status==="active"?"Активен":c.status],["AI-модель",c.config?.ai_model||"—"]].map(([l,v],i,a)=>(
+            {[["Название",c.name],["Город",c.city],["Тариф",`${c.plan} · ${c.plan_price} ₽/мес`],["Статус",c.status==="active"?"Активен":c.status],["AI-модель",c.config?.ai_model||"—"]].map(([l,v],i,a)=>(
               <div key={l} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 0",borderBottom:i<a.length-1?`1px solid ${T.line}`:"none"}}>
                 <span style={{color:T.dim,fontSize:13.5}}>{l}</span><span style={{fontWeight:650,fontSize:14}}>{v}</span></div>))}
           </Card>}
@@ -477,15 +476,25 @@ export default function App() {
 
                 {/* Активность по часам */}
                 <Card>
-                  <div style={{fontSize:15,fontWeight:700,marginBottom:16}}>Активность по часам</div>
-                  <div style={{display:"flex",alignItems:"flex-end",gap:3,height:110,overflow:"hidden"}}>
-                    {(a.by_hour||[]).map((h,i)=>(
-                      <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-                        <div title={`${h.hour}:00 — ${h.count}`} style={{width:"100%",height:Math.max(2,(h.count/maxHour)*80),background:h.count>0?T.cyan:T.line,borderRadius:"3px 3px 0 0"}}/>
-                        {i%3===0&&<div style={{fontSize:8.5,color:T.faint}}>{h.hour}</div>}
-                      </div>
-                    ))}
-                  </div>
+                  <div style={{fontSize:15,fontWeight:700,marginBottom:6}}>Активность по часам</div>
+                  <div style={{fontSize:12.5,color:T.dim,marginBottom:18}}>Когда клиенты делают заказы чаще всего</div>
+                  {(()=>{
+                    const hrs=a.by_hour||[];
+                    const peak=hrs.reduce((m,h)=>h.count>m.count?h:m,{count:0,hour:0});
+                    return <>
+                    {peak.count>0 && <div style={{fontSize:13,marginBottom:16,padding:"10px 14px",background:T.brandSoft,borderRadius:10,color:T.brand2,fontWeight:600}}>🔥 Пик заказов: {peak.hour}:00–{peak.hour+1}:00 ({peak.count} заказов)</div>}
+                    <div style={{display:"flex",alignItems:"flex-end",gap:4,height:120}}>
+                      {hrs.map((h,i)=>{
+                        const isPeak=h.hour===peak.hour&&h.count>0;
+                        return <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
+                          {h.count>0 && <div style={{fontSize:9,color:isPeak?T.brand2:T.faint,fontWeight:isPeak?700:400}}>{h.count}</div>}
+                          <div title={`${h.hour}:00 — ${h.count} заказов`} style={{width:"100%",maxWidth:14,height:Math.max(3,(h.count/maxHour)*70),background:isPeak?`linear-gradient(180deg,${T.brand2},${T.brand})`:(h.count>0?T.cyan:T.line),borderRadius:"3px 3px 0 0",transition:"height .3s"}}/>
+                          {h.hour%6===0&&<div style={{fontSize:9,color:T.faint}}>{h.hour}:00</div>}
+                        </div>;
+                      })}
+                    </div>
+                    </>;
+                  })()}
                 </Card>
               </>;
             })()}
@@ -619,15 +628,15 @@ export default function App() {
         <Header title="Статистика" sub={isAdmin?"Финансы и нагрузка":"Активность вашего заведения"}/>
         {isAdmin ? <>
           <div style={{display:"grid",gridTemplateColumns:mob?"1fr":"repeat(3,1fr)",gap:14,marginBottom:18}}>
-            <Stat label="Доход" value={`$${income}`} accent={T.brand}/>
-            <Stat label="Расход AI" value={`$${cost.toFixed(2)}`} accent={T.red}/>
-            <Stat label="Прибыль" value={`$${(income-cost).toFixed(2)}`} accent={T.green}/>
+            <Stat label="Доход" value={`${income} ₽`} accent={T.brand}/>
+            <Stat label="Расход AI" value={`${cost.toFixed(0)} ₽`} accent={T.red}/>
+            <Stat label="Прибыль" value={`${(income-cost).toFixed(0)} ₽`} accent={T.green}/>
           </div>
           <Card>
             <div style={{fontSize:15,fontWeight:700,marginBottom:18}}>По заведениям</div>
             <div style={{overflowX:"auto"}}><div style={{minWidth:460}}>
               <Row head cells={["Заведение","Заказов","Расход","Прибыль"]}/>
-              {clients.map(c=>{ const ct=tokenCost(c); return <Row key={c.id} cells={[`${c.emoji} ${c.name}`,c.orders_count,`$${ct.toFixed(2)}`,`$${((c.plan_price||0)-ct).toFixed(2)}`]} colors={[T.text,T.dim,T.red,T.green]}/>; })}
+              {clients.map(c=>{ const ct=tokenCost(c); return <Row key={c.id} cells={[`${c.emoji} ${c.name}`,c.orders_count,`${ct.toFixed(0)} ₽`,`${((c.plan_price||0)-ct).toFixed(0)} ₽`]} colors={[T.text,T.dim,T.red,T.green]}/>; })}
             </div></div>
           </Card>
         </> : <>
