@@ -56,6 +56,7 @@ export default function App() {
   const [toast, setToast] = useState("");
   const [orderFilter, setOrderFilter] = useState("all");
   const [orderSearch, setOrderSearch] = useState("");
+  const [openOrderDlg, setOpenOrderDlg] = useState(null);
   const [addingClient, setAddingClient] = useState(false);
   const [loading, setLoading] = useState(false);
   const [addingItem, setAddingItem] = useState(false);
@@ -229,6 +230,26 @@ export default function App() {
       {/* ЗАКАЗЫ */}
       {page==="orders" && <div>
         <Header title="Заказы" sub="Управление статусами"/>
+        {/* мини-аналитика заказов по дням */}
+        {orders.length>0 && (()=>{
+          const byDay={};
+          orders.forEach(o=>{ const d=(o.created_at||"").slice(0,10); if(d) byDay[d]=(byDay[d]||0)+1; });
+          const days=Object.entries(byDay).sort().slice(-14);
+          const maxD=Math.max(1,...days.map(d=>d[1]));
+          if(days.length<2) return null;
+          return <Card style={{marginBottom:16}}>
+            <div style={{fontSize:14,fontWeight:700,marginBottom:14}}>Заказы по дням</div>
+            <div style={{display:"flex",alignItems:"flex-end",gap:5,height:90}}>
+              {days.map(([date,cnt],i)=>(
+                <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+                  <div style={{fontSize:10,color:T.dim,fontWeight:600}}>{cnt}</div>
+                  <div title={`${date}: ${cnt} заказов`} style={{width:"100%",maxWidth:24,height:Math.max(4,(cnt/maxD)*60),background:`linear-gradient(180deg,${T.brand2},${T.brand})`,borderRadius:"4px 4px 0 0"}}/>
+                  <div style={{fontSize:8.5,color:T.faint}}>{date.slice(5)}</div>
+                </div>
+              ))}
+            </div>
+          </Card>;
+        })()}
         <input value={orderSearch} onChange={e=>setOrderSearch(e.target.value)} placeholder="🔍 Поиск по заказам (имя, адрес, телефон, блюдо)..." style={{...INP,marginBottom:14}}/>
         <div style={{display:"flex",gap:8,marginBottom:20,flexWrap:"wrap"}}>
           {["all",...Object.keys(STATUS)].map(f=>(
@@ -243,6 +264,10 @@ export default function App() {
                 <Pill s={o.status}/>
               </div>
               <div style={{fontSize:13.5,color:"#C8CDD6",whiteSpace:"pre-wrap",lineHeight:1.65,background:T.bg,borderRadius:11,padding:13,border:`1px solid ${T.line}`}}>{o.items_text}</div>
+              {o.dialog_text && <div style={{marginTop:10}}>
+                <div onClick={()=>setOpenOrderDlg(openOrderDlg===o.id?null:o.id)} style={{fontSize:12.5,color:T.brand2,fontWeight:600,cursor:"pointer",display:"inline-flex",alignItems:"center",gap:6}}>{openOrderDlg===o.id?"▲ Скрыть диалог":"💬 Показать полный диалог"}</div>
+                {openOrderDlg===o.id && <div style={{marginTop:10,padding:13,background:T.bg,borderRadius:11,border:`1px solid ${T.line}`,maxHeight:300,overflowY:"auto",fontSize:13,color:"#C8CDD6",whiteSpace:"pre-wrap",lineHeight:1.6}}>{o.dialog_text}</div>}
+              </div>}
               <div style={{display:"flex",gap:7,marginTop:13,flexWrap:"wrap"}}>
                 {Object.keys(STATUS).map(s=>(<button key={s} onClick={async()=>{ await apiPost("/api/update-order-status",{order_id:o.id,status:s}); setOrders(orders.map(x=>x.id===o.id?{...x,status:s}:x)); notify(`Заказ №${o.order_number} — ${STATUS[s].l}`); }}
                   style={{padding:"6px 12px",borderRadius:9,border:`1px solid ${o.status===s?STATUS[s].c:T.line}`,background:o.status===s?STATUS[s].c+"1A":"transparent",color:o.status===s?STATUS[s].c:T.dim,fontSize:11.5,fontWeight:600,cursor:"pointer"}}>{STATUS[s].l}</button>))}
