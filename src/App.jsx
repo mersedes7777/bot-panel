@@ -3,21 +3,40 @@ import { useState, useEffect } from "react";
 const API = "https://api.neurokaldristal.ru";
 
 // ── Дизайн-токены ──
-const T = {
-  bg: "#0B0D12", surface: "#13161D", surface2: "#1A1E27", line: "#252A35",
-  text: "#F5F7FA", dim: "#8B92A0", faint: "#5A616E",
-  brand: "#6D5EF6", brandSoft: "#6D5EF61A", brand2: "#9D7BFF",
-  green: "#2BD980", red: "#FF5C5C", amber: "#FFB020", cyan: "#3DD6E8",
+// Дизайн-система: две темы (светлая/тёмная), акцент — синий индиго
+const THEMES = {
+  dark: {
+    bg: "#0E1116", surface: "#171B22", surface2: "#1F242E", line: "#2A303B",
+    text: "#F2F5F9", dim: "#9BA3B2", faint: "#646C7C",
+    brand: "#3B6EF5", brandSoft: "rgba(59,110,245,.14)", brand2: "#6E9BFF",
+    green: "#22C55E", red: "#F05252", amber: "#F59E0B", cyan: "#06B6D4",
+    shadow: "0 4px 20px rgba(0,0,0,.35)",
+  },
+  light: {
+    bg: "#F4F6FB", surface: "#FFFFFF", surface2: "#F0F3F9", line: "#E3E8F0",
+    text: "#141922", dim: "#5B6472", faint: "#94A0B0",
+    brand: "#3B6EF5", brandSoft: "rgba(59,110,245,.10)", brand2: "#2A56D6",
+    green: "#16A34A", red: "#DC2626", amber: "#D97706", cyan: "#0891B2",
+    shadow: "0 2px 14px rgba(20,30,60,.08)",
+  },
 };
 
 const STATUS = {
-  new:{l:"Новый",c:"#5B8DEF"}, accepted:{l:"Принят",c:"#9D7BFF"}, cooking:{l:"Готовится",c:"#FFB020"},
-  delivering:{l:"В пути",c:"#3DD6E8"}, done:{l:"Выполнен",c:"#2BD980"}, rejected:{l:"Отклонён",c:"#FF5C5C"},
+  new:{l:"Новый",c:"#3B6EF5"}, accepted:{l:"Принят",c:"#6E9BFF"}, cooking:{l:"Готовится",c:"#F59E0B"},
+  delivering:{l:"В пути",c:"#06B6D4"}, done:{l:"Выполнен",c:"#22C55E"}, rejected:{l:"Отклонён",c:"#F05252"},
 };
 const TOKEN_PRICE = { deepseek:13, "claude-haiku":95, "claude-sonnet":285 }; // руб за 1М токенов
 
 const FONT = "'Inter','SF Pro Display',-apple-system,sans-serif";
-const INP = {background:T.bg,border:`1px solid ${T.line}`,borderRadius:11,padding:"12px 14px",color:T.text,fontSize:16,outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color .2s",fontFamily:FONT};
+
+// Текущая тема (меняется переключателем). Инициализируем из localStorage.
+let T = THEMES[(typeof localStorage!=="undefined" && localStorage.getItem("theme")==="light") ? "light" : "dark"];
+let INP = {background:T.bg,border:`1px solid ${T.line}`,borderRadius:11,padding:"12px 14px",color:T.text,fontSize:16,outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color .2s",fontFamily:FONT};
+function applyTheme(name){
+  T = THEMES[name] || THEMES.dark;
+  INP = {background:T.bg,border:`1px solid ${T.line}`,borderRadius:11,padding:"12px 14px",color:T.text,fontSize:16,outline:"none",width:"100%",boxSizing:"border-box",transition:"border-color .2s",fontFamily:FONT};
+  try{ localStorage.setItem("theme",name); }catch(e){}
+}
 
 // Стабильные компоненты вне App — не пересоздаются при ререндере (фокус не слетает)
 function Field({style={},...p}) {
@@ -41,6 +60,8 @@ function Card({children,style={},...p}) {
 
 export default function App() {
   const [pwd, setPwd] = useState(localStorage.getItem("adminPwd") || "");
+  const [theme, setTheme] = useState((localStorage.getItem("theme")==="light")?"light":"dark");
+  const toggleTheme = () => { const n = theme==="dark"?"light":"dark"; applyTheme(n); setTheme(n); };
   const [role, setRole] = useState(localStorage.getItem("role") || "");
   const [logged, setLogged] = useState(false);
   const [loginInput, setLoginInput] = useState("");
@@ -114,7 +135,9 @@ export default function App() {
     document.body.style.margin="0";
     document.body.style.overflowX="hidden";
     document.documentElement.style.overflowX="hidden";
-  }, []);
+    document.body.style.background=T.bg;
+    document.body.style.transition="background .3s";
+  }, [theme]);
   const loadMenu = async (id) => { try{ const r=await apiGet("/api/menu/"+id); setMenu(r.menu||[]); }catch{ setMenu([]); } };
   const loadDialogs = async (id) => { setLoadingDlg(true); try{ const r=await apiGet("/api/dialogs/"+id); setDialogs(r.dialogs||[]); }catch{ setDialogs([]); } setLoadingDlg(false); };
   const loadAnalytics = async (id) => { setLoadingAna(true); try{ const r=await apiGet("/api/analytics/"+id); setAnalytics(r); }catch{ setAnalytics(null); } setLoadingAna(false); };
@@ -702,7 +725,10 @@ export default function App() {
       <style>{`@keyframes sl{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}`}</style>
       <div style={{padding:"16px 18px",borderBottom:`1px solid ${T.line}`,display:"flex",justifyContent:"space-between",alignItems:"center",position:"sticky",top:0,background:T.bg+"F0",backdropFilter:"blur(12px)",zIndex:100}}>
         <div style={{display:"flex",alignItems:"center",gap:9}}><div style={{width:30,height:30,borderRadius:9,background:`linear-gradient(135deg,${T.brand},${T.brand2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>◆</div><span style={{fontSize:17,fontWeight:800,letterSpacing:-.4}}>ChatAIbot</span></div>
-        <span onClick={logout} style={{color:T.dim,fontSize:13,cursor:"pointer"}}>Выйти</span>
+        <div style={{display:"flex",alignItems:"center",gap:14}}>
+          <span onClick={toggleTheme} title="Тема" style={{fontSize:17,cursor:"pointer"}}>{theme==="dark"?"☀️":"🌙"}</span>
+          <span onClick={logout} style={{color:T.dim,fontSize:13,cursor:"pointer"}}>Выйти</span>
+        </div>
       </div>
       <div style={{padding:18}}>{Body}</div>
       <div style={{position:"fixed",bottom:0,left:0,right:0,background:T.surface+"F5",backdropFilter:"blur(14px)",borderTop:`1px solid ${T.line}`,display:"flex",justifyContent:"space-around",padding:"9px 0 11px",zIndex:100}}>
@@ -732,6 +758,7 @@ export default function App() {
             <div style={{width:32,height:32,borderRadius:9,background:`linear-gradient(135deg,${T.brand},${T.brand2})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:700}}>{isAdmin?"A":"К"}</div>
             <div style={{minWidth:0}}><div style={{fontSize:13,fontWeight:650}}>{isAdmin?"Администратор":"Заведение"}</div><div style={{fontSize:11,color:T.faint}}>{isAdmin?"полный доступ":"ваш кабинет"}</div></div>
           </div>
+          <div onClick={toggleTheme} style={{padding:"11px 14px",borderRadius:11,color:T.dim,fontSize:13.5,cursor:"pointer",fontWeight:500,transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color=T.text} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>{theme==="dark"?"☀️ Светлая тема":"🌙 Тёмная тема"}</div>
           <div onClick={logout} style={{padding:"11px 14px",borderRadius:11,color:T.dim,fontSize:13.5,cursor:"pointer",fontWeight:500,transition:"color .15s"}} onMouseEnter={e=>e.currentTarget.style.color=T.text} onMouseLeave={e=>e.currentTarget.style.color=T.dim}>Выйти из панели</div>
         </div>
       </div>
