@@ -3,7 +3,11 @@ import { useState, useEffect, useRef, useMemo, useCallback, createContext, useCo
 // ════════════════════════════════════════════════════════════
 //  ChatAIbot — панель управления (админка + кабинет клиента)
 // ════════════════════════════════════════════════════════════
-const API = (import.meta.env && import.meta.env.VITE_API_URL) || "https://api.neurokaldristal.ru";
+// Настоящий адрес сервера — его получают Telegram и вебхуки.
+const SERVER = (import.meta.env && import.meta.env.VITE_API_URL) || "https://api.neurokaldristal.ru";
+// Браузер ходит к серверу через Vercel (файл vercel.json): так панель работает,
+// даже если провайдер не пускает телефон напрямую на сервер.
+const API = typeof window !== "undefined" && /\.vercel\.app$/.test(window.location.hostname) ? "" : SERVER;
 
 const CSS = `
 :root{
@@ -1086,7 +1090,7 @@ function CreateBot({ onClose }) {
     if (!f.name.trim() || !f.token.trim()) { toast("Нужны название и токен бота", "bad"); return; }
     setBusy(true);
     try {
-      const r = await api.post("/api/create-client", { ...f, base_url: API });
+      const r = await api.post("/api/create-client", { ...f, base_url: SERVER });
       toast(r.webhook ? "Бот подключён и уже отвечает" : "Бот создан, но вебхук не встал — проверьте токен", r.webhook ? "ok" : "bad");
       onClose();
       nav(`admin/bot/${r.client_id}`);
@@ -1527,9 +1531,9 @@ function BotConnect({ cid, data, reload }) {
             <div><div style={{ fontWeight: 700 }}>Токен</div><div className="mono hint" style={{ marginTop: 3 }}>{tg ? tg.token_mask : "не подключён"}</div></div>
             {wh ? (wh.ok ? <Pill color="var(--ok)" bg="var(--ok-soft)" dot="var(--ok)">Получает сообщения</Pill> : <Pill color="var(--bad)" bg="var(--bad-soft)" dot="var(--bad)">{wh.error || "Не получает сообщения"}</Pill>) : <span className="hint">проверка — раз в 30 минут</span>}
           </div>
-          <Btn loading={busy === "wh"} icon="refresh" onClick={() => run("wh", async () => { const r = await api.post("/api/reconnect-webhook", { client_id: cid, base_url: API }); toast(r.results?.every((x) => x.ok) ? "Бот переподключён" : "Telegram не принял — проверьте токен", r.results?.every((x) => x.ok) ? "ok" : "bad"); reload(); })}>Переподключить</Btn>
+          <Btn loading={busy === "wh"} icon="refresh" onClick={() => run("wh", async () => { const r = await api.post("/api/reconnect-webhook", { client_id: cid, base_url: SERVER }); toast(r.results?.every((x) => x.ok) ? "Бот переподключён" : "Telegram не принял — проверьте токен", r.results?.every((x) => x.ok) ? "ok" : "bad"); reload(); })}>Переподключить</Btn>
           <label className="lbl">Новый токен (после смены в @BotFather)<input className="inp" type="password" autoComplete="off" value={newToken} onChange={(e) => setNewToken(e.target.value)} placeholder="1234567890:AA…" /></label>
-          <Btn kind="primary" disabled={!newToken.trim()} loading={busy === "tok"} onClick={() => run("tok", async () => { const r = await api.post("/api/update-token", { client_id: cid, token: newToken.trim(), base_url: API }); setNewToken(""); toast(r.webhook ? "Токен обновлён, бот подключён" : "Токен сохранён, но Telegram не принял вебхук", r.webhook ? "ok" : "bad"); reload(); })}>Сохранить токен</Btn>
+          <Btn kind="primary" disabled={!newToken.trim()} loading={busy === "tok"} onClick={() => run("tok", async () => { const r = await api.post("/api/update-token", { client_id: cid, token: newToken.trim(), base_url: SERVER }); setNewToken(""); toast(r.webhook ? "Токен обновлён, бот подключён" : "Токен сохранён, но Telegram не принял вебхук", r.webhook ? "ok" : "bad"); reload(); })}>Сохранить токен</Btn>
         </section>
         <section className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <h2 className="h2">Группа для заказов</h2>
@@ -1616,7 +1620,7 @@ function AdminSystem() {
     { t: "ИИ", v: "DeepSeek", ok: ai.errors_24h < 3, warn: ai.errors_24h >= 3, label: ai.errors_24h >= 3 ? "Сбои" : "Отвечает", rows: [["Средний ответ", ai.avg_ms ? secs(ai.avg_ms) : "—"], ["Ошибок за сутки", String(ai.errors_24h)], ["Расход за 30 дней", rub(ai.cost_30)]] },
     { t: "Telegram-боты", v: "вебхуки", ok: !whBad.length, warn: whBad.length > 0, label: (data.webhooks || []).length ? `${data.webhooks.filter((w) => w.ok).length} из ${data.webhooks.filter((w) => w.state !== "off").length}` : "—", rows: [["Последняя проверка", b.telegram?.checked_at ? hhmm(b.telegram.checked_at * 1000) : "—"], ...whBad.slice(0, 3).map((w) => [w.name, w.error || "ошибка"])] },
     { t: "Резервные копии", v: "настройки и каталоги", ok: !!b.backup?.ok, warn: b.backup && !b.backup.ok, label: b.backup?.ok ? "Сохранена" : b.backup ? "Ошибка" : "Ещё не было", rows: [["Последняя", b.backup?.at ? whenShort(b.backup.at) : "—"], ["Размер", b.backup?.size ? bytes(b.backup.size) : "—"], ["Куда", "в Telegram, каждую ночь в 02:30"]] },
-    { t: "Панель", v: "Vercel", ok: true, label: "Работает", rows: [["Панель", window.location.host], ["API", API.replace(/^https?:\/\//, "")]] },
+    { t: "Панель", v: "Vercel", ok: true, label: "Работает", rows: [["Панель", window.location.host], ["API", SERVER.replace(/^https?:\/\//, "")]] },
   ];
   const warns = [];
   if (e && e.pct_projected >= 80) warns.push(`За ${e.days_passed} ${plural(e.days_passed, "день", "дня", "дней")} цикла база отдала ${bytes(e.used)}. В таком темпе к ${dateLabel(e.cycle_end)} будет ${bytes(e.projected)} — ${Math.round(e.pct_projected)}% лимита. На 100% Supabase ограничит базу, и боты замолчат.`);
