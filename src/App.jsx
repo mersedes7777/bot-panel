@@ -1103,7 +1103,7 @@ function CreateBot({ onClose }) {
       <label className="lbl">Токен бота от @BotFather<input className="inp" value={f.token} onChange={set("token")} placeholder="1234567890:AA…" autoComplete="off" /></label>
       <div className="wrapflex" style={{ gap: 12 }}>
         <label className="lbl" style={{ flex: "1 1 200px" }}>Город и ниша<input className="inp" value={f.city} onChange={set("city")} placeholder="Москва · цветы" /></label>
-        <label className="lbl" style={{ flex: "1 1 200px" }}>Что делает бот<select className="inp" value={f.business_type} onChange={set("business_type")}><option value="order">Принимает заказы</option><option value="lead">Собирает заявки</option></select></label>
+        <label className="lbl" style={{ flex: "1 1 200px" }}>Что делает бот<select className="inp" value={f.business_type} onChange={set("business_type")}><option value="order">Принимает заказы</option><option value="lead">Собирает заявки</option><option value="demo">Демо для владельцев</option></select></label>
       </div>
       <div className="wrapflex" style={{ gap: 12 }}>
         <label className="lbl" style={{ flex: "1 1 140px" }}>Тариф<input className="inp" value={f.plan} onChange={set("plan")} /></label>
@@ -1111,7 +1111,7 @@ function CreateBot({ onClose }) {
         <label className="lbl" style={{ flex: "1 1 160px" }}>Режим<select className="inp" value={f.bot_mode} onChange={set("bot_mode")}>{Object.entries(MODE).map(([k, m]) => <option key={k} value={k}>{m.label}</option>)}</select></label>
       </div>
       <label className="lbl">ID группы для заказов (можно позже)<input className="inp" value={f.staff_chat_id} onChange={set("staff_chat_id")} placeholder="-100…" /></label>
-      <div className="hint">После подключения бот сразу начнёт отвечать. Инструкцию и каталог настроите в карточке бота.</div>
+      <div className="hint">{f.business_type === "demo" ? "Демо: владелец магазина сам загружает свои товары (пересылает посты, вставляет прайс, присылает файл) и проверяет бота как покупатель. Заявки «Хочу такого бота» придут в группу этого бота, а если её нет — вам в Telegram." : "После подключения бот сразу начнёт отвечать. Инструкцию и каталог настроите в карточке бота."}</div>
     </Modal>
   );
 }
@@ -1201,7 +1201,7 @@ function AdminClients() {
                       <span className="hint" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.city}</span>
                     </span>
                   </div>
-                  <div role="cell" style={{ padding: 12, display: "flex", flexDirection: "column", gap: 2 }}><span style={{ fontWeight: 700 }}>{c.plan || "—"}</span><span className="hint">{c.plan_price ? `${num(c.plan_price)} ₽/мес` : c.business_type === "lead" ? "свой бот" : "бесплатно"}</span></div>
+                  <div role="cell" style={{ padding: 12, display: "flex", flexDirection: "column", gap: 2 }}><span style={{ fontWeight: 700 }}>{c.plan || "—"}</span><span className="hint">{c.plan_price ? `${num(c.plan_price)} ₽/мес` : c.business_type === "demo" ? "демо" : c.business_type === "lead" ? "свой бот" : "бесплатно"}</span></div>
                   <div role="cell" style={{ padding: 12 }}>{c.status === "paused" ? <span className="muted">—</span> : modePill(c.bot_mode)}</div>
                   <div role="cell" style={{ padding: 12, textAlign: "right", fontWeight: 700 }}>{c.orders_30 || "—"}</div>
                   <div role="cell" style={{ padding: 12, textAlign: "right", fontWeight: 700 }}>{c.gmv_30 ? rub(c.gmv_30) : "—"}</div>
@@ -1546,7 +1546,7 @@ function BotConnect({ cid, data, reload }) {
           <h2 className="h2">О бизнесе</h2>
           <label className="lbl">Название<input className="inp" value={info.name} onChange={(e) => setInfo({ ...info, name: e.target.value })} /></label>
           <label className="lbl">Город и ниша<input className="inp" value={info.city} onChange={(e) => setInfo({ ...info, city: e.target.value })} /></label>
-          <label className="lbl">Что делает бот<select className="inp" value={info.business_type} onChange={(e) => setInfo({ ...info, business_type: e.target.value })}><option value="order">Принимает заказы</option><option value="lead">Собирает заявки</option></select></label>
+          <label className="lbl">Что делает бот<select className="inp" value={info.business_type} onChange={(e) => setInfo({ ...info, business_type: e.target.value })}><option value="order">Принимает заказы</option><option value="lead">Собирает заявки</option><option value="demo">Демо для владельцев</option></select></label>
           <Btn kind="primary" loading={busy === "info"} onClick={() => run("info", async () => { await api.post(`/api/admin/client/${cid}/update`, info); toast("Сохранено"); reload(); })}>Сохранить</Btn>
         </section>
         <section className="card" style={{ display: "flex", flexDirection: "column", gap: 10, borderColor: "rgba(248,113,113,.3)" }}>
@@ -1725,7 +1725,7 @@ function dayTitle(ts) {
 }
 
 // ── Заказы: статусы и разбор текста ──
-const bizType = (t) => (t === "lead" ? "lead" : "order");
+const bizType = (t) => (t === "lead" || t === "demo" ? "lead" : "order");
 function stLabel(type, s) { return ORDER_ST[bizType(type)][s] || s; }
 const NEXT_STEP = {
   order: { new: ["accepted", "Принять заказ"], accepted: ["cooking", "Начать сборку"], cooking: ["delivering", "Передать курьеру"], delivering: ["done", "Заказ выполнен"] },
