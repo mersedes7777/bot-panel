@@ -152,6 +152,8 @@ select.inp{padding:0 10px}
   .cab-2{grid-template-columns:minmax(0,1fr)}
 }
 @media (max-width:860px){
+  .tabs{flex-wrap:wrap;overflow-x:visible}
+  .tabs button{padding:0 12px}
   .side{display:none}
   .main{padding:14px 16px 96px}
   .wrap{gap:16px}
@@ -1511,6 +1513,14 @@ function TestChat({ cid, mode }) {
   );
 }
 
+// «Товары из Telegram» прямо во вкладке «Подключение»: ссылку удобно скопировать и отправить владельцу магазина
+function TgUploadAdmin({ cid }) {
+  const { api } = useApp();
+  const { data, setData } = useLoad(() => api.get(`/api/c/${encodeURIComponent(cid)}/owners`), [cid], false);
+  if (!data || !data.available) return null;
+  return <TgUpload cid={cid} owners={data.owners || []} onOwners={(owners) => setData((d) => ({ ...d, owners }))} />;
+}
+
 function BotConnect({ cid, data, reload }) {
   const { api, toast, nav } = useApp();
   const c = data.client;
@@ -1535,6 +1545,7 @@ function BotConnect({ cid, data, reload }) {
           <label className="lbl">Новый токен (после смены в @BotFather)<input className="inp" type="password" autoComplete="off" value={newToken} onChange={(e) => setNewToken(e.target.value)} placeholder="1234567890:AA…" /></label>
           <Btn kind="primary" disabled={!newToken.trim()} loading={busy === "tok"} onClick={() => run("tok", async () => { const r = await api.post("/api/update-token", { client_id: cid, token: newToken.trim(), base_url: SERVER }); setNewToken(""); toast(r.webhook ? "Токен обновлён, бот подключён" : "Токен сохранён, но Telegram не принял вебхук", r.webhook ? "ok" : "bad"); reload(); })}>Сохранить токен</Btn>
         </section>
+        <TgUploadAdmin cid={cid} />
         <section className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <h2 className="h2">Группа для заказов</h2>
           <div className="hint">Сюда бот присылает заказы, черновики и просьбы позвать менеджера. Добавьте бота в группу и укажите её ID (начинается с -100).</div>
