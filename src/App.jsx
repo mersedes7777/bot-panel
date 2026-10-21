@@ -183,6 +183,7 @@ select.inp{padding:0 10px}
 // ── Иконки (линейные, без эмодзи) ──
 const ICONS = {
   home: "M3 10.5 12 4l9 6.5|M5 9.5V20h14V9.5",
+  ruble: "M9 20V4h5a4 4 0 0 1 0 8H7|M7 16h7",
   bag: "M5 8h14l-1 12H6z|M9 8V6.5a3 3 0 0 1 6 0V8",
   chat: "M4 5h16v11H10l-6 4z",
   chart: "M5 20V11M12 20V5M19 20v-6",
@@ -2481,11 +2482,132 @@ function peakInfo(heat) {
   return { days: `${D[top2[0]]} и ${D[top2[1]].toLowerCase()}`, from: bh, to: bh + 5, share: Math.round((best / total) * 100) };
 }
 
+// ── Заработок на товарах: выручка минус закупка (закупку владелец указывает сам, по желанию) ──
+function ProfitCard({ p, days, onEdit }) {
+  const mobile = useMedia(MOBILE_Q);
+  const per = days === 90 ? "3 месяца" : `${days} дней`;
+  const box = { width: 40, height: 40, borderRadius: 10, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ok-soft)", color: "var(--ok)" };
+  if (!p.set) {
+    return (
+      <section className="card" aria-labelledby="pf-t" style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: mobile ? "wrap" : "nowrap" }}>
+        <span style={box}><Icon name="ruble" size={20} /></span>
+        <div style={{ flex: "1 1 240px", minWidth: 0 }}>
+          <h2 id="pf-t" className="h2" style={{ fontSize: 15 }}>Сколько вы зарабатываете на заказах из бота</h2>
+          <div className="dim" style={{ fontSize: 13.5, lineHeight: 1.5, marginTop: 2 }}>Укажите, сколько примерно вам стоит товар, — покажем заработок: выручка минус закупка. Закупку видите только вы.</div>
+        </div>
+        <Btn kind="primary" block={mobile} icon="ruble" onClick={onEdit}>Указать закупку</Btn>
+      </section>
+    );
+  }
+  const ap = p.approx ? "≈ " : "";
+  const share = p.known ? Math.max(0, Math.min(100, Math.round((p.cost / p.known) * 100))) : 0;
+  const pb = p.payback;
+  const times = pb ? (Number.isInteger(pb) ? `${pb} ${plural(pb, "раз", "раза", "раз")}` : `${String(pb).replace(".", ",")} раза`) : "";
+  return (
+    <section className="card" aria-labelledby="pf-t" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div className="between" style={{ flexWrap: "wrap", gap: 8 }}>
+        <h2 id="pf-t" className="h2">Заработок на товарах</h2>
+        <Btn size="sm" kind="ghost" icon="edit" onClick={onEdit}>Изменить закупку</Btn>
+      </div>
+      {p.revenue === 0 ? <div className="hint">Продаж за этот период не было — заработок появится с первыми заказами.</div> : (<>
+        {p.known > 0 ? (<>
+          <div className="row" style={{ gap: 12, flexWrap: "wrap", alignItems: "baseline" }}>
+            <b style={{ fontSize: mobile ? 28 : 34, letterSpacing: -0.5, color: p.profit >= 0 ? "var(--text)" : "var(--bad)" }}>{ap}{rub(p.profit)}</b>
+            <span className="kpi-s" style={{ display: "inline-flex", gap: 8, flexWrap: "wrap" }}><Delta cur={p.profit} prev={p.profit_prev} />{p.profit_prev ? <span>было {ap}{rub(p.profit_prev)}</span> : null}</span>
+          </div>
+          <div>
+            <div style={{ display: "flex", height: 12, borderRadius: 6, overflow: "hidden", gap: 2 }} aria-hidden="true">
+              {share > 0 && <span style={{ width: `${share}%`, background: "#4B5563" }} />}
+              {share < 100 && <span style={{ flex: 1, background: "var(--ok)" }} />}
+            </div>
+            <div className="row" style={{ gap: 16, flexWrap: "wrap", fontSize: 13, marginTop: 8, color: "var(--dim)" }}>
+              <span>{p.uncovered ? "продажи с закупкой" : "выручка"} <b style={{ color: "var(--text)" }}>{rub(p.known)}</b></span>
+              <span className="row" style={{ gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: "#4B5563" }} />закупка <b style={{ color: "var(--text)" }}>{ap}{rub(p.cost)}</b></span>
+              <span className="row" style={{ gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--ok)" }} />заработок <b style={{ color: "var(--text)" }}>{ap}{rub(p.profit)}</b></span>
+            </div>
+          </div>
+          {pb && (
+            <div style={{ border: "1px solid rgba(52,211,153,.3)", background: "var(--ok-soft)", borderRadius: 12, padding: "12px 14px", fontSize: 13.5, lineHeight: 1.55 }}>
+              Заказы через бота принесли <b>{ap}{rub(p.profit)}</b> — {p.uncovered ? "как минимум " : ""}в <b>{times}</b> больше, чем стоит бот за {per} ({rub(p.bot_cost)}).
+            </div>
+          )}
+        </>) : <div className="hint">Для проданных товаров закупка пока не указана.</div>}
+        {p.uncovered > 0 && <div className="hint" style={{ lineHeight: 1.55 }}>Ещё {rub(p.uncovered)} — продажи товаров без указанной закупки. <button type="button" className="btn ghost sm" style={{ color: "var(--accent-text)", padding: "0 4px", minHeight: 0, display: "inline" }} onClick={onEdit}>Укажите общий процент</button> — посчитаем всё.</div>}
+        <div className="hint">Выручка минус закупка. Аренда, зарплаты, доставка и налоги не учтены.</div>
+      </>)}
+    </section>
+  );
+}
+
+function CostsModal({ cid, onClose, onSaved }) {
+  const { api, toast } = useApp();
+  const mobile = useMedia(MOBILE_Q);
+  const { data, error, loading, reload } = useLoad(() => api.get(`/api/c/${encodeURIComponent(cid)}/costs`), [cid], false);
+  const [pct, setPct] = useState(null);
+  const [cats, setCats] = useState({});
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (data && pct === null) {
+      setPct(data.pct != null ? String(data.pct) : "");
+      const c = {};
+      Object.entries(data.cats || {}).forEach(([k, v]) => { c[k] = String(v); });
+      setCats(c);
+      setOpen(Object.keys(c).length > 0);
+    }
+  }, [data]); // eslint-disable-line
+  const toNum = (v) => { const n = parseInt(String(v || "").replace(/[^\d]/g, ""), 10); return isNaN(n) ? null : n; };
+  const n = toNum(pct);
+  const bad = (n !== null && n > 100) || Object.values(cats).some((v) => toNum(v) !== null && toNum(v) > 100);
+  const ex = (data && data.example) || 3000;
+  const save = async () => {
+    setBusy(true);
+    try {
+      const body = { pct: n, cats: {} };
+      Object.entries(cats).forEach(([k, v]) => { if (toNum(v) !== null) body.cats[k] = toNum(v); });
+      await api.post(`/api/c/${encodeURIComponent(cid)}/costs`, body);
+      toast("Сохранено — заработок пересчитан");
+      onSaved();
+    } catch (e) { toast(e.message, "bad"); }
+    setBusy(false);
+  };
+  const digits = (v) => v.replace(/[^\d]/g, "").slice(0, 3);
+  return (
+    <Modal title="Закупка" sheet={mobile} onClose={onClose} footer={<><Btn onClick={onClose}>Отмена</Btn><Btn kind="primary" loading={busy} disabled={!data || bad} onClick={save}>Сохранить</Btn></>}>
+      {loading && !data ? <Skeleton h={140} /> : error && !data ? <ErrorBox error={error} onRetry={reload} /> : (<>
+        <label className="lbl">Закупка в среднем, % от цены продажи
+          <span className="row" style={{ gap: 8 }}><input className="inp" inputMode="numeric" value={pct ?? ""} onChange={(e) => setPct(digits(e.target.value))} placeholder="Например, 40" style={{ maxWidth: 160 }} aria-invalid={n !== null && n > 100} /><span className="dim">%</span></span>
+        </label>
+        <div className="hint" style={{ lineHeight: 1.55, marginTop: -6 }}>
+          {n !== null && n <= 100
+            ? <>Товар за {rub(ex)} обходится вам ≈ в {rub(Math.round(ex * n / 100))}, заработок ≈ {rub(ex - Math.round(ex * n / 100))}.</>
+            : <>Сколько процентов от цены вы платите поставщику. Например, товар за {rub(ex)} обходится вам в {rub(Math.round(ex * 0.4))} — это 40%.</>}
+          {n !== null && n > 100 && <b style={{ color: "var(--bad)" }}> Процент — от 0 до 100.</b>}
+        </div>
+        {data.categories.length > 1 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button type="button" className="btn ghost sm" style={{ alignSelf: "flex-start", padding: "0 4px", color: "var(--accent-text)" }} aria-expanded={open} onClick={() => setOpen(!open)}>{open ? "Скрыть категории" : "Для категорий — если закупка отличается"}</button>
+            {open && data.categories.map((c) => (
+              <div key={c.name} className="row" style={{ gap: 10, justifyContent: "space-between" }}>
+                <span style={{ minWidth: 0, fontSize: 14 }}><b>{c.name}</b> <span className="hint">· {c.count} {plural(c.count, "товар", "товара", "товаров")}</span></span>
+                <span className="row" style={{ gap: 6, flexShrink: 0 }}><input className="inp" inputMode="numeric" aria-label={`Закупка для «${c.name}», %`} value={cats[c.name] || ""} onChange={(e) => setCats({ ...cats, [c.name]: digits(e.target.value) })} placeholder={n !== null ? String(n) : "—"} style={{ width: 76, textAlign: "right" }} /><span className="dim">%</span></span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="hint" style={{ lineHeight: 1.55 }}>Точную закупку отдельного товара можно указать в каталоге — в карточке товара{data.exact ? ` (сейчас указана у ${data.exact} ${plural(data.exact, "товара", "товаров", "товаров")})` : ""}. Она важнее процента.</div>
+        <div className="row" style={{ gap: 10, alignItems: "flex-start", fontSize: 13, color: "var(--dim)", lineHeight: 1.5 }}><Icon name="shield" size={18} style={{ marginTop: 1, color: "var(--ok)" }} />Закупку видите только вы: бот её не знает и покупателям не показывает.</div>
+      </>)}
+    </Modal>
+  );
+}
+
 function CabAnalytics({ cid }) {
   const { api, toast, badges } = useApp();
   const mobile = useMedia(MOBILE_Q);
   const [days, setDays] = useState(30);
   const [table, setTable] = useState(false);
+  const [costsOpen, setCostsOpen] = useState(false);
   const { data, error, loading, reload } = useLoad(() => api.get(`/api/c/${encodeURIComponent(cid)}/analytics?days=${days}`), [cid, days], false);
   if (loading && !data) return <PageSkeleton />;
   if (error && !data) return <div className="wrap"><ErrorBox error={error} onRetry={reload} /></div>;
@@ -2512,6 +2634,8 @@ function CabAnalytics({ cid }) {
         <Kpi label="Конверсия" value={k.conversion != null ? `${k.conversion}%` : "—"}>{k.conversion != null && k.conversion_prev != null ? <><Delta cur={k.conversion} prev={k.conversion_prev} unit=" п.п." /><span>было {k.conversion_prev}%</span></> : <span>из диалога в {lead ? "заявку" : "заказ"}</span>}</Kpi>
         <Kpi label="Ответ бота" value={k.ai_ms ? secs(k.ai_ms) : "—"}><span>{k.ai_ms ? "в среднем за период" : "появится после ответов бота"}</span></Kpi>
       </section>
+      {data.profit && !lead && data.schema && <ProfitCard p={data.profit} days={days} onEdit={() => setCostsOpen(true)} />}
+      {costsOpen && <CostsModal cid={cid} onClose={() => setCostsOpen(false)} onSaved={() => { setCostsOpen(false); reload(); }} />}
       <section className="card" aria-labelledby="ln-t" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         <div className="between" style={{ flexWrap: "wrap" }}>
           <h2 id="ln-t" className="h2">Выручка по дням</h2>
@@ -2731,7 +2855,7 @@ function CabCatalog({ cid }) {
   };
   const onDeleted = (id) => { setData((d) => ({ ...d, items: d.items.filter((x) => x.id !== id), total: Math.max(0, (d.total || 1) - 1) })); setSelId(null); };
   const onPhotos = (id, photos) => setData((d) => ({ ...d, items: d.items.map((x) => (x.id === id ? { ...x, photos, photo_url: photos[0] || null } : x)) }));
-  const editor = sel && <ItemEditor key={sel.id || "new"} cid={cid} item={sel} cats={cats} schema={data.schema} onSaved={onSaved} onDeleted={onDeleted} onPhotos={onPhotos} onClose={() => setSelId(null)} inModal={narrow} />;
+  const editor = sel && <ItemEditor key={sel.id || "new"} cid={cid} item={sel} cats={cats} schema={data.schema} costs={data.costs} onSaved={onSaved} onDeleted={onDeleted} onPhotos={onPhotos} onClose={() => setSelId(null)} inModal={narrow} />;
   return (
     <div className="wrap">
       <PageHead title="Каталог" sub={<>{num(data.total)} {plural(data.total, "товар", "товара", "товаров")} · в продаже {num(onSale)}<span className="hide-m">. Бот берёт цены, фото и описания отсюда: выключили товар — бот сразу перестаёт его предлагать.</span></>} right={<>
@@ -2798,9 +2922,9 @@ function CabCatalog({ cid }) {
   );
 }
 
-function ItemEditor({ cid, item, cats, schema, onSaved, onDeleted, onPhotos, onClose, inModal }) {
+function ItemEditor({ cid, item, cats, schema, costs, onSaved, onDeleted, onPhotos, onClose, inModal }) {
   const { api, toast } = useApp();
-  const init = { name: item.name || "", price: item.price ? String(item.price) : "", category: item.category || "", description: item.description || "", available: item.available !== false };
+  const init = { name: item.name || "", price: item.price ? String(item.price) : "", cost: item.cost ? String(item.cost) : "", category: item.category || "", description: item.description || "", available: item.available !== false };
   const [f, setF] = useState(init);
   const [photos, setPhotos] = useState(item.photos || []);
   const [busy, setBusy] = useState("");
@@ -2813,9 +2937,12 @@ function ItemEditor({ cid, item, cats, schema, onSaved, onDeleted, onPhotos, onC
     if (!f.name.trim()) { toast("Напишите название товара", "bad"); return; }
     setBusy("save");
     try {
-      const r = await api.post(`/api/c/${cid}/catalog/save`, { id: item.id || undefined, name: f.name.trim(), price: f.price, category: f.category.trim(), description: f.description, available: f.available });
-      toast(isNew ? "Товар добавлен — бот уже может его предлагать" : "Сохранено — бот уже знает новые данные");
-      onSaved(r.id || item.id, { name: f.name.trim(), price: parsePriceInput(f.price), category: f.category.trim() || "Прочее", description: f.description, available: f.available }, isNew);
+      const body = { id: item.id || undefined, name: f.name.trim(), price: f.price, category: f.category.trim(), description: f.description, available: f.available };
+      if (schema && (f.cost !== init.cost || isNew)) body.cost = f.cost;
+      const r = await api.post(`/api/c/${cid}/catalog/save`, body);
+      if (r.cost_error) toast("Товар сохранён, а закупку сохранить не получилось — попробуйте ещё раз", "bad");
+      else toast(isNew ? "Товар добавлен — бот уже может его предлагать" : "Сохранено — бот уже знает новые данные");
+      onSaved(r.id || item.id, { name: f.name.trim(), price: parsePriceInput(f.price), cost: r.cost_error ? item.cost || null : parsePriceInput(f.cost) || null, category: f.category.trim() || "Прочее", description: f.description, available: f.available }, isNew);
     } catch (e) { toast(e.message, "bad"); }
     setBusy("");
   };
@@ -2845,6 +2972,12 @@ function ItemEditor({ cid, item, cats, schema, onSaved, onDeleted, onPhotos, onC
     setBusy("");
   };
   const desc = f.description.trim();
+  const pr = parsePriceInput(f.price), co = parsePriceInput(f.cost);
+  const catPct = costs && costs.cats ? costs.cats[f.category.trim() || "Прочее"] : undefined;
+  const estPct = catPct != null ? catPct : costs ? costs.pct : null;
+  const costHint = co && pr ? `Заработок с одной продажи: ${rub(pr - co)} (${Math.round(((pr - co) / pr) * 100)}%).`
+    : pr && estPct != null ? `Не указана — считаем по ${estPct}%: закупка ≈ ${rub(Math.round(pr * estPct / 100))}.`
+      : "Необязательно — чтобы видеть заработок в аналитике.";
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       {!inModal && (
@@ -2883,6 +3016,14 @@ function ItemEditor({ cid, item, cats, schema, onSaved, onDeleted, onPhotos, onC
         <label className="lbl" style={{ flex: "1 1 160px" }}>Категория<input className="inp" list={`cats-${cid}`} value={f.category} onChange={set("category")} placeholder="Букеты" /></label>
         <datalist id={`cats-${cid}`}>{cats.map((c) => <option key={c} value={c} />)}</datalist>
       </div>
+      {schema && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <label className="lbl">Закупка, ₽ — видите только вы
+            <input className="inp" inputMode="numeric" value={f.cost} onChange={set("cost")} placeholder={pr && estPct != null ? `≈ ${num(Math.round(pr * estPct / 100))}` : "Например, 2 000"} style={{ maxWidth: 220 }} />
+          </label>
+          <span className="hint" style={{ color: co && pr && co > pr ? "var(--warn)" : undefined }}>{co && pr && co > pr ? "Закупка больше цены — проверьте цифры." : costHint}</span>
+        </div>
+      )}
       <label className="lbl">Описание для бота
         <textarea className="inp" rows={4} value={f.description} onChange={set("description")} disabled={!schema} placeholder="Состав, размер, сколько стоит, чем хорош. Бот перескажет своими словами." />
       </label>
