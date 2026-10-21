@@ -2599,6 +2599,75 @@ function CatThumb({ it }) {
   return <span className="ph" aria-hidden="true"><Icon name="image" size={20} /></span>;
 }
 
+// ── Товары из Telegram: владелец пересылает боту посты и фото — товары появляются в каталоге ──
+function TgUpload({ cid, owners, onOwners }) {
+  const { api, toast } = useApp();
+  const mobile = useMedia(MOBILE_Q);
+  const [link, setLink] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [off, setOff] = useState(false);
+  const base = useRef(owners.length);
+  const has = owners.length > 0;
+  const getLink = async () => {
+    setBusy(true);
+    try { const r = await api.post(`/api/c/${encodeURIComponent(cid)}/owner-link`, {}); base.current = owners.length; setLink(r); }
+    catch (e) { toast(e.message, "bad"); }
+    setBusy(false);
+  };
+  // пока окно открыто — ждём, когда человек нажмёт «Старт» в боте
+  useEffect(() => {
+    if (!link) return undefined;
+    let alive = true;
+    const t = setInterval(async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const r = await api.get(`/api/c/${encodeURIComponent(cid)}/owners`);
+        if (alive && (r.owners || []).length > base.current) {
+          onOwners(r.owners); setLink(null); toast("Telegram подключён — пересылайте боту посты с товарами");
+        }
+      } catch (e) { /* */ }
+    }, 3000);
+    return () => { alive = false; clearInterval(t); };
+  }, [link]); // eslint-disable-line
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(`Добавляйте товары в каталог бота прямо из Telegram: откройте ссылку и нажмите «Старт». Потом просто пересылайте боту посты из канала или фото с подписью «Название — цена».\n${link.url}\n(ссылка одноразовая, действует сутки)`);
+      toast("Ссылка скопирована — отправьте её владельцу магазина");
+    } catch (e) { toast("Не удалось скопировать", "bad"); }
+  };
+  return (
+    <>
+      <section className="card" aria-labelledby="tgup-t" style={{ display: "flex", gap: 14, alignItems: "center", flexWrap: mobile ? "wrap" : "nowrap" }}>
+        <span style={{ width: 40, height: 40, borderRadius: 10, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--accent-soft)", color: "var(--accent-text)" }}><Icon name="plane" size={20} /></span>
+        <div style={{ flex: "1 1 220px", minWidth: 0, fontSize: 13.5, lineHeight: 1.5 }}>
+          <h2 id="tgup-t" className="h2" style={{ fontSize: 15 }}>{has ? "Товары из Telegram подключены" : "Добавляйте товары прямо из Telegram"}</h2>
+          <div className="dim" style={{ marginTop: 2 }}>{has
+            ? <>Пересылайте боту посты из канала или фото с подписью «Название — цена» — товары появятся здесь. Подключено: <b style={{ color: "var(--text)" }}>{owners.join(", ")}</b></>
+            : "Пересылайте боту посты из своего канала или фото с подписью «Название — цена» — товар с фото и ценой сам появится в каталоге."}</div>
+        </div>
+        <div className="row" style={{ gap: 8, flexWrap: "wrap", flex: mobile ? "1 1 100%" : "0 0 auto" }}>
+          {has && <Btn size="sm" kind="ghost" onClick={() => setOff(true)}>Отключить</Btn>}
+          <Btn size={has ? "sm" : undefined} kind={has ? "" : "primary"} block={mobile && !has} icon={has ? "plus" : "plane"} loading={busy} onClick={getLink}>{has ? "Ещё аккаунт" : "Подключить Telegram"}</Btn>
+        </div>
+      </section>
+      {link && (
+        <Modal title="Подключить Telegram" sheet={mobile} onClose={() => setLink(null)} footer={<>
+          <Btn icon="copy" onClick={copy}>Скопировать ссылку</Btn>
+          <a className="btn primary" href={link.url} target="_blank" rel="noreferrer"><Icon name="plane" size={18} sw={2} />Открыть Telegram</a>
+        </>}>
+          <ol style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 8, fontSize: 14.5, lineHeight: 1.5 }}>
+            <li>Нажмите «Открыть Telegram» — откроется ваш бот{link.bot ? <> <b>@{link.bot}</b></> : null}.</li>
+            <li>Нажмите «Старт» (или «Запустить»).</li>
+            <li>Готово: пересылайте боту посты из канала или фото с подписью «Название — цена» — товары появятся в каталоге.</li>
+          </ol>
+          <p className="hint" style={{ margin: 0, lineHeight: 1.5 }}>Ссылка одноразовая и действует сутки. Подключаете не себя — скопируйте её и отправьте владельцу магазина. Покупатели этот режим не видят.</p>
+        </Modal>
+      )}
+      {off && <Confirm title="Отключить Telegram?" text="Добавлять товары пересылкой больше не получится, пока не подключите снова. Товары в каталоге останутся." ok="Отключить" danger onClose={() => setOff(false)} onOk={async () => { try { await api.post(`/api/c/${encodeURIComponent(cid)}/owner-unlink`, {}); onOwners([]); toast("Telegram отключён"); } catch (e) { toast(e.message, "bad"); throw e; } }} />}
+    </>
+  );
+}
+
 function CabCatalog({ cid }) {
   const { api, toast } = useApp();
   const mobile = useMedia(MOBILE_Q);
@@ -2608,7 +2677,7 @@ function CabCatalog({ cid }) {
   const [selId, setSelId] = useState(null);
   const [stub, setStub] = useState(null);
   const [imp, setImp] = useState(false);
-  const { data, error, loading, reload, setData } = useLoad(() => api.get(`/api/c/${encodeURIComponent(cid)}/catalog${sq ? `?q=${encodeURIComponent(sq)}` : ""}`), [cid, sq], false);
+  const { data, error, loading, reload, setData } = useLoad(() => api.get(`/api/c/${encodeURIComponent(cid)}/catalog${sq ? `?q=${encodeURIComponent(sq)}` : ""}`), [cid, sq], 5000);
   useEffect(() => {
     const n = hashQuery().new;
     if (n !== undefined) { setStub({ id: null, name: n, price: "", category: "", description: "", available: true, photos: [] }); setSelId("new"); }
@@ -2664,6 +2733,7 @@ function CabCatalog({ cid }) {
       </>} />
       <div className="cab-2" style={!sel || narrow ? { gridTemplateColumns: "minmax(0,1fr)" } : null}>
         <div className="col" style={{ gap: 16 }}>
+          {data.tg && data.schema && !ql && <TgUpload cid={cid} owners={data.owners || []} onOwners={(owners) => setData((d) => ({ ...d, owners }))} />}
           {data.tips.length > 0 && !ql && (
             <section className="card" aria-labelledby="tips-t" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               <div className="row" style={{ gap: 10, flexWrap: "wrap", paddingBottom: 8 }}><h2 id="tips-t" className="h2">Подсказки по каталогу</h2><span className="hint">по разбору диалогов</span></div>
@@ -2706,7 +2776,7 @@ function CabCatalog({ cid }) {
                 </Fragment>
               );
             })}
-            {!items.length && <Empty icon="box" title={all.length ? "Ничего не нашли" : "Каталог пуст"} text={all.length ? "Попробуйте другое слово." : "Добавьте товары по одному или загрузите списком из Excel — бот сразу начнёт их предлагать."} action={!all.length ? <Btn kind="primary" icon="upload" onClick={() => setImp(true)}>Загрузить списком</Btn> : null} />}
+            {!items.length && <Empty icon="box" title={all.length ? "Ничего не нашли" : "Каталог пуст"} text={all.length ? "Попробуйте другое слово." : data.tg ? "Добавьте товары по одному, загрузите списком из Excel или пересылайте боту посты из канала — бот сразу начнёт их предлагать." : "Добавьте товары по одному или загрузите списком из Excel — бот сразу начнёт их предлагать."} action={!all.length ? <Btn kind="primary" icon="upload" onClick={() => setImp(true)}>Загрузить списком</Btn> : null} />}
           </section>
         </div>
         {sel && !narrow && <aside className="card" aria-label="Товар" style={{ position: "sticky", top: 20, maxHeight: "calc(100vh - 40px)", overflowY: "auto" }}>{editor}</aside>}
