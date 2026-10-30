@@ -653,7 +653,11 @@ function Login({ onDone }) {
     setBusy(true); setErr("");
     try {
       const r = await fetch(API + "/api/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ login: login.trim(), password: pass }) });
-      if (!r.ok) setErr(r.status === 401 ? "Неверный логин или пароль" : "Сервер не отвечает, попробуйте чуть позже");
+      if (!r.ok) {
+        let detail = "";
+        try { detail = (await r.json()).detail || ""; } catch (e3) { /* */ }
+        setErr(r.status === 401 ? "Неверный логин или пароль" : r.status === 429 ? detail : "Сервер не отвечает, попробуйте чуть позже");
+      }
       else { const d = await r.json(); onDone(login.trim() ? `${login.trim()}:${pass}` : pass, d); }
     } catch (e2) { setErr("Сервер недоступен. Проверьте интернет."); }
     setBusy(false);
@@ -666,12 +670,210 @@ function Login({ onDone }) {
           <div><div style={{ fontWeight: 800, fontSize: 19, letterSpacing: -.3 }}>ChatAIbot</div><div className="hint">Панель управления ботами</div></div>
         </div>
         <h1 className="h2" style={{ fontSize: 20, marginTop: 6 }}>Вход</h1>
-        <label className="lbl">Логин<input className="inp" autoComplete="username" value={login} onChange={(e) => setLogin(e.target.value)} autoFocus /></label>
+        <label className="lbl">Логин или телефон<input className="inp" autoComplete="username" value={login} onChange={(e) => setLogin(e.target.value)} autoFocus /></label>
         <label className="lbl">Пароль<input className="inp" type="password" autoComplete="current-password" value={pass} onChange={(e) => setPass(e.target.value)} /></label>
         {err && <div role="alert" className="banner" style={{ background: "var(--bad-soft)", color: "var(--bad)", fontSize: 13.5, fontWeight: 700, padding: "10px 12px" }}>{err}</div>}
         <Btn kind="primary" block loading={busy} type="submit">Войти</Btn>
-        <div className="hint">Клиенты входят по логину, который выдал администратор.</div>
+        <div className="hint" style={{ lineHeight: 1.55 }}>Нет кабинета? <a href="#/start" style={{ color: "var(--accent-text)", fontWeight: 800 }}>Подключить магазин бесплатно</a> — 7 дней без оплаты.</div>
       </form>
+    </div>
+  );
+}
+
+// ════════ Самостоятельное подключение магазина (без входа) ════════
+function fmtPhone(d) {
+  d = String(d || "").replace(/\D/g, "");
+  if (d.length === 11 && d[0] === "7") return `+7 ${d.slice(1, 4)} ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9)}`;
+  return d ? `+${d}` : "";
+}
+
+function phoneDigits(v) {
+  let d = String(v || "").replace(/\D/g, "");
+  if (d.length === 11 && d[0] === "8") d = "7" + d.slice(1);
+  if (d.length === 10 && d[0] === "9") d = "7" + d;
+  return d;
+}
+
+function Signup({ onDone }) {
+  const [cfg, setCfg] = useState(null);
+  const [loadErr, setLoadErr] = useState("");
+  const [step, setStep] = useState(1);
+  const [f, setF] = useState({ name: "", niche: "", city: "", phone: "", tg: "", password: "" });
+  const [show, setShow] = useState(false);
+  const [vals, setVals] = useState({});
+  const [chk, setChk] = useState(null);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [done, setDone] = useState(null);
+  const seq = useRef(0);
+  const timer = useRef(null);
+  useEffect(() => {
+    fetch(API + "/api/signup/config").then((r) => r.json()).then(setCfg).catch(() => setLoadErr("Сервер недоступен. Проверьте интернет и обновите страницу."));
+  }, []);
+  const ch = cfg && cfg.channels[0];
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const digits = phoneDigits(f.phone);
+  const step1Err = f.name.trim().length < 2 ? "Напишите название магазина" : !f.niche ? "Выберите, что продаёте"
+    : digits.length < 10 ? "Напишите телефон — по нему вы будете входить" : f.password.length < 6 ? "Пароль — не короче 6 символов" : "";
+  const runCheck = (data) => {
+    const my = ++seq.current;
+    clearTimeout(timer.current);
+    const raw = Object.values(data).join("").trim();
+    if (raw.length < 20) { setChk(raw ? { state: "short" } : null); return; }
+    setChk({ state: "checking" });
+    timer.current = setTimeout(async () => {
+      try {
+        const r = await fetch(API + "/api/signup/check-channel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type: ch.type, data }) });
+        const d = await r.json();
+        if (my !== seq.current) return;
+        if (!r.ok) setChk({ state: "bad", error: d.detail || "Не получилось проверить" });
+        else setChk(d.ok ? { state: "ok", ...d } : { state: "bad", error: d.error });
+      } catch (e) { if (my === seq.current) setChk({ state: "bad", error: "Сервер недоступен. Проверьте интернет." }); }
+    }, 500);
+  };
+  const setField = (k, v) => { const nv = { ...vals, [k]: v }; setVals(nv); runCheck(nv); };
+  const paste = async (k) => {
+    try { const t = await navigator.clipboard.readText(); if (t) setField(k, t.trim()); }
+    catch (e) { setErr("Не получилось вставить автоматически — нажмите на поле и вставьте вручную."); }
+  };
+  const submit = async () => {
+    setBusy(true); setErr("");
+    try {
+      const r = await fetch(API + "/api/signup", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...f, phone: digits, channels: [{ type: ch.type, data: vals }] }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setErr(d.detail || "Не получилось подключить. Попробуйте ещё раз."); setBusy(false); return; }
+      const tok = `${d.login}:${f.password}`;
+      try { localStorage.setItem("adminPwd", tok); } catch (e) { /* */ }
+      setDone({ ...d, tok });
+      setStep(3);
+      window.scrollTo(0, 0);
+    } catch (e) { setErr("Сервер недоступен. Проверьте интернет."); }
+    setBusy(false);
+  };
+  const shell = (children) => (
+    <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", padding: "24px 16px 40px", background: "radial-gradient(900px 500px at 70% -10%, rgba(47,99,230,.16), transparent 70%), var(--bg)" }}>
+      <div style={{ width: "100%", maxWidth: 520, display: "flex", flexDirection: "column", gap: 16 }}>
+        <div className="row" style={{ gap: 12 }}>
+          <span className="brand-logo"><Icon name="chat" size={19} sw={2} /></span>
+          <div style={{ flex: 1 }}><div style={{ fontWeight: 800, fontSize: 19, letterSpacing: -.3 }}>ChatAIbot</div><div className="hint">ИИ-продавец для вашего магазина</div></div>
+          {step < 3 && <span className="hint" style={{ fontWeight: 700 }}>Шаг {step} из 2</span>}
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+  if (loadErr) return shell(<ErrorBox error={loadErr} onRetry={() => window.location.reload()} />);
+  if (!cfg) return shell(<Skeleton h={420} />);
+  if (step === 1) return shell(
+    <form className="card" style={{ display: "flex", flexDirection: "column", gap: 16 }} onSubmit={(e) => { e.preventDefault(); if (step1Err) setErr(step1Err); else { setErr(""); setStep(2); window.scrollTo(0, 0); } }}>
+      <div>
+        <h1 className="h2" style={{ fontSize: 22 }}>Подключите бота за 10 минут</h1>
+        <div className="sub" style={{ marginTop: 6, lineHeight: 1.5 }}>Бот будет отвечать покупателям, показывать товары с фото и принимать заказы — днём и ночью. {cfg.trial_days} дней бесплатно, без карты.</div>
+      </div>
+      <label className="lbl">Название магазина<input className="inp" value={f.name} onChange={set("name")} placeholder="Например, Цветы у дома" maxLength={80} /></label>
+      <div className="lbl" role="group" aria-label="Что продаёте">Что продаёте
+        <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+          {cfg.niches.map((n) => <Chip key={n.key} on={f.niche === n.key} onClick={() => setF({ ...f, niche: n.key })}>{n.emoji} {n.title}</Chip>)}
+        </div>
+      </div>
+      <label className="lbl"><span>Город <span className="hint" style={{ fontWeight: 600 }}>· необязательно</span></span><input className="inp" value={f.city} onChange={set("city")} placeholder="Оренбург" maxLength={60} /></label>
+      <label className="lbl">Телефон<input className="inp" type="tel" inputMode="tel" autoComplete="tel" value={f.phone} onChange={set("phone")} placeholder="+7 900 123-45-67" /></label>
+      <span className="hint" style={{ marginTop: -10 }}>По нему вы будете входить в кабинет.</span>
+      <label className="lbl"><span>Telegram для связи <span className="hint" style={{ fontWeight: 600 }}>· необязательно</span></span><input className="inp" value={f.tg} onChange={set("tg")} placeholder="@username" maxLength={40} /></label>
+      <label className="lbl">Придумайте пароль
+        <span className="row" style={{ gap: 8 }}>
+          <input className="inp" type={show ? "text" : "password"} autoComplete="new-password" value={f.password} onChange={set("password")} placeholder="Не короче 6 символов" style={{ flex: 1 }} />
+          <Btn type="button" kind="ghost" onClick={() => setShow(!show)} aria-label={show ? "Скрыть пароль" : "Показать пароль"}><Icon name="eye" size={18} /></Btn>
+        </span>
+      </label>
+      {err && <div role="alert" className="banner" style={{ background: "var(--bad-soft)", color: "var(--bad)", fontSize: 13.5, fontWeight: 700, padding: "10px 12px" }}>{err}</div>}
+      <Btn kind="primary" block type="submit">Дальше</Btn>
+      <div className="hint" style={{ textAlign: "center" }}>Уже есть кабинет? <a href="#/" style={{ color: "var(--accent-text)", fontWeight: 800 }}>Войти</a></div>
+    </form>
+  );
+  if (step === 2) return shell(
+    <div className="card" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div>
+        <h1 className="h2" style={{ fontSize: 22 }}>Бот в {ch.title}</h1>
+        <div className="sub" style={{ marginTop: 6, lineHeight: 1.5 }}>Создайте бота для магазина — это бесплатно и займёт пару минут.</div>
+      </div>
+      <ol style={{ margin: 0, paddingLeft: 0, listStyle: "none", display: "flex", flexDirection: "column", gap: 12 }}>
+        {ch.steps.map((st, i) => (
+          <li key={i} className="row" style={{ gap: 12, alignItems: "flex-start" }}>
+            <span style={{ width: 28, height: 28, borderRadius: 14, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--accent-soft)", color: "var(--accent-text)", fontWeight: 800, fontSize: 14 }}>{i + 1}</span>
+            <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 8, fontSize: 14.5, lineHeight: 1.5, paddingTop: 3 }}>
+              <span>{st.text}</span>
+              {st.link && <a className="btn soft sm" style={{ alignSelf: "flex-start" }} href={st.link} target="_blank" rel="noreferrer"><Icon name={ch.icon || "plane"} size={16} sw={2} />{st.button || "Открыть"}</a>}
+            </div>
+          </li>
+        ))}
+      </ol>
+      {ch.fields.map((fl) => (
+        <label key={fl.key} className="lbl">{fl.label}
+          <span className="row" style={{ gap: 8 }}>
+            <input className="inp mono" value={vals[fl.key] || ""} onChange={(e) => setField(fl.key, e.target.value)} placeholder={fl.placeholder} autoComplete="off" autoCapitalize="off" spellCheck={false} style={{ flex: 1, minWidth: 0, fontSize: 13.5 }} />
+            {fl.paste && <Btn type="button" onClick={() => paste(fl.key)}>Вставить</Btn>}
+          </span>
+        </label>
+      ))}
+      {chk && (
+        <div role="status" className="row" style={{ gap: 8, fontSize: 14, fontWeight: 700, marginTop: -6, color: chk.state === "ok" ? "var(--ok)" : chk.state === "bad" ? "var(--bad)" : "var(--dim)" }}>
+          {chk.state === "checking" && <><span className="spin" style={{ width: 14, height: 14 }} />Проверяю…</>}
+          {chk.state === "short" && <span style={{ fontWeight: 600 }}>Вставьте строку целиком — она длинная.</span>}
+          {chk.state === "ok" && <><Icon name="check" size={18} sw={2.6} />Бот {chk.name} найден{chk.title ? ` — «${chk.title}»` : ""}</>}
+          {chk.state === "bad" && <span style={{ lineHeight: 1.45 }}>{chk.error}</span>}
+        </div>
+      )}
+      {ch.note && <div className="hint" style={{ lineHeight: 1.5 }}>{ch.note}</div>}
+      {err && <div role="alert" className="banner" style={{ background: "var(--bad-soft)", color: "var(--bad)", fontSize: 13.5, fontWeight: 700, padding: "10px 12px" }}>{err}</div>}
+      <div className="row" style={{ gap: 10 }}>
+        <Btn type="button" onClick={() => { setErr(""); setStep(1); }}>Назад</Btn>
+        <Btn kind="primary" style={{ flex: 1 }} disabled={!chk || chk.state !== "ok"} loading={busy} onClick={submit}>Подключить</Btn>
+      </div>
+      <div className="hint" style={{ lineHeight: 1.5 }}>Нажимая «Подключить», вы соглашаетесь на обработку указанных данных для работы сервиса.</div>
+    </div>
+  );
+  return shell(
+    <div className="card" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <span style={{ width: 48, height: 48, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ok-soft)", color: "var(--ok)" }}><Icon name="check" size={26} sw={2.6} /></span>
+      <div>
+        <h1 className="h2" style={{ fontSize: 22 }}>Готово! Бот {done.bot} подключён</h1>
+        <div className="sub" style={{ marginTop: 6, lineHeight: 1.5 }}>{done.trial_days} дней бесплатно — до {dLong(done.trial_until)}. Осталось добавить товары.</div>
+      </div>
+      {done.owner_link && <a className="btn primary block" href={done.owner_link} target="_blank" rel="noreferrer"><Icon name="plane" size={18} sw={2} />Добавить товары в Telegram</a>}
+      <ol style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 8, fontSize: 14.5, lineHeight: 1.5 }}>
+        <li>Откроется ваш бот — нажмите «Старт». Сюда же будут приходить новые заказы.</li>
+        <li>Перешлите боту посты с товарами из своего канала или фото с подписью «Название — цена».</li>
+        <li>Нажмите в боте «Проверить как покупатель» и напишите ему, как обычный клиент.</li>
+      </ol>
+      <Btn block onClick={() => onDone(done.tok)}>Перейти в кабинет</Btn>
+      <div className="hint" style={{ lineHeight: 1.5 }}>Вход в кабинет: телефон {fmtPhone(done.login)} и ваш пароль.</div>
+    </div>
+  );
+}
+
+function TrialBanner({ trial, cid }) {
+  const { nav } = useApp();
+  if (!trial) return null;
+  const left = trial.left;
+  if (trial.items === 0) {
+    return (
+      <div className="banner" style={{ background: "var(--accent-soft)", border: "1px solid rgba(47,99,230,.3)", fontSize: 13.5, padding: "12px 14px", marginBottom: 16 }}>
+        <Icon name="box" size={18} style={{ color: "var(--accent-text)" }} />
+        <span style={{ flex: "1 1 200px", lineHeight: 1.45 }}><b>Первый шаг — добавьте товары.</b> Пока каталог пуст, боту нечего предлагать покупателям. Быстрее всего — переслать боту посты из канала.</span>
+        <button type="button" className="btn sm primary" onClick={() => nav(`c/${cid}/catalog`)}>Добавить товары</button>
+      </div>
+    );
+  }
+  const text = left > 1 ? `Пробный период: осталось ${left} ${plural(left, "день", "дня", "дней")} — до ${trial.until_text}.`
+    : left === 1 ? `Пробный период заканчивается завтра, ${trial.until_text}.`
+      : left === 0 ? "Пробный период заканчивается сегодня." : "Пробный период закончился — бот пока работает.";
+  return (
+    <div className="banner" style={{ background: left < 0 ? "var(--warn-soft)" : "var(--accent-soft)", border: `1px solid ${left < 0 ? "rgba(245,181,68,.35)" : "rgba(47,99,230,.3)"}`, fontSize: 13.5, padding: "10px 14px", marginBottom: 16 }}>
+      <Icon name="clock" size={18} style={{ color: left < 0 ? "var(--warn)" : "var(--accent-text)" }} />
+      <span style={{ flex: "1 1 200px", lineHeight: 1.45 }}>{text} Чтобы продолжить пользоваться ботом, напишите нам.</span>
+      {trial.sales && <a className="btn sm soft" href={trial.sales} target="_blank" rel="noreferrer">Написать</a>}
     </div>
   );
 }
@@ -860,6 +1062,9 @@ export default function App() {
   useEffect(() => { if (pulse) loadBadges(); }, [pulse]); // eslint-disable-line
 
   if (!token || (!me && !checking)) {
+    if (route[0] === "start") {
+      return (<><style>{CSS}</style><Signup onDone={(tok) => { try { localStorage.setItem("adminPwd", tok); } catch (e) { /* */ } window.location.hash = ""; setToken(tok); }} /></>);
+    }
     return (<><style>{CSS}</style><Login onDone={(tok) => { try { localStorage.setItem("adminPwd", tok); } catch (e) { /* */ } setToken(tok); }} /></>);
   }
   if (!me) return (<><style>{CSS}</style><div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}><span className="spin" /></div></>);
@@ -905,7 +1110,7 @@ export default function App() {
             </div>
           )}
           <MobileBars scope={scope} page={page} cid={cid} badges={badges} onLogout={logout} />
-          <main className="main">{body}</main>
+          <main className="main">{scope === "cab" && badges?.trial && page !== "catalog" && <TrialBanner trial={badges.trial} cid={cid} />}{body}</main>
         </div>
       </div>
     </Ctx.Provider>
