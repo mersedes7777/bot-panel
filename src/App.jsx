@@ -4097,7 +4097,14 @@ function AdminSrcSetup() {
   const { data, reload } = useLoad(() => api.get("/api/admin/src-setup"), [], false);
   const [tok, setTok] = useState("");
   const [busy, setBusy] = useState(false);
+  const [test, setTest] = useState(null);
+  const [testing, setTesting] = useState(false);
   if (!data) return null;
+  const runTest = async () => {
+    setTesting(true);
+    try { setTest(await api.post("/api/admin/src-test")); } catch (e) { setTest({ ok: false, error: e.message }); }
+    setTesting(false); reload();
+  };
   const rows = [["Таблицы в базе", data.schema, "запустите update-sourcing.sql"], ["Поиск Яндекса", data.search, "YANDEX_SEARCH_KEY и YANDEX_FOLDER_ID"],
     ["Отправка писем", data.mail, "SMTP_HOST, SMTP_USER, SMTP_PASS"], ["Проверка ИНН", data.dadata, "DADATA_KEY (необязательно)"], ["Бот закупок", !!data.bot, "токен ниже"]];
   const save = async (t) => {
@@ -4112,6 +4119,15 @@ function AdminSrcSetup() {
         <Pill color={data.search && data.schema ? "var(--ok)" : "var(--warn)"} bg={data.search && data.schema ? "var(--ok-soft)" : "var(--warn-soft)"}>{data.search && data.schema ? "Работает" : "Не настроено"}</Pill>
       </div>
       {rows.map(([l, okk, how]) => <div key={l} className="between" style={{ padding: "9px 0", borderTop: "1px solid var(--line3)", fontSize: 13.5 }}><span className="dim">{l}</span><span style={{ fontWeight: 700, textAlign: "right", color: okk ? "var(--ok)" : "var(--faint)" }}>{okk ? (l === "Бот закупок" ? `@${data.bot}` : "подключено") : how}</span></div>)}
+      {data.search && (
+        <div style={{ padding: "9px 0", borderTop: "1px solid var(--line3)", display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="between" style={{ fontSize: 13.5 }}><span className="dim">Проверка поиска</span><Btn size="sm" loading={testing} onClick={runTest}>Проверить поиск</Btn></div>
+          {test && (test.ok
+            ? <div style={{ fontSize: 13, color: "var(--ok)", fontWeight: 700 }}>Яндекс отвечает: найдено {test.found} сайтов{test.sample?.length ? ` (${test.sample.join(", ")})` : ""}</div>
+            : <div style={{ fontSize: 13, lineHeight: 1.5, color: "var(--bad)" }}><b>{test.error}</b>{test.detail && <div className="mono" style={{ fontSize: 12, marginTop: 4, color: "var(--dim)", wordBreak: "break-word" }}>Ответ Яндекса: {test.detail}</div>}{test.hint && <div style={{ marginTop: 4, color: "var(--dim)" }}>{test.hint}</div>}</div>)}
+          {!test && data.search_error && <div className="mono" style={{ fontSize: 12, color: "var(--bad)", wordBreak: "break-word" }}>Последняя ошибка Яндекса: {data.search_error}</div>}
+        </div>
+      )}
       <div className="between" style={{ padding: "9px 0", borderTop: "1px solid var(--line3)", fontSize: 13.5 }}><span className="dim">Поисков за 30 дней</span><span style={{ fontWeight: 700 }}>{data.searches_month} · ≈{rub(data.cost_month)}</span></div>
       {!data.env_bot && (
         <div className="row" style={{ gap: 8, paddingTop: 8 }}>
