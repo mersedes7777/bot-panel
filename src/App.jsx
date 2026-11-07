@@ -3696,7 +3696,8 @@ function SrcHistory({ cid, base }) {
   const groups = srcGroups(data.items).slice(0, 12);
   return (
     <section className="card" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <div className="between" style={{ paddingBottom: 6, flexWrap: "wrap", gap: 6 }}><h2 className="h2">Недавние поиски</h2>{data.left !== null && data.left !== undefined && <span className="hint">{data.access?.trial ? `бесплатных поисков: ${data.left} из ${data.limit}` : `сегодня осталось ${data.left} из ${data.limit}`}</span>}</div>
+      <div className="between" style={{ paddingBottom: 6, flexWrap: "wrap", gap: 6 }}><h2 className="h2">Недавние поиски</h2>{data.access?.trial ? <span className="hint">бесплатных поисков: {data.left} из {data.limit}</span>
+        : data.access?.positions_left !== undefined ? <span className="hint">по тарифу в этом месяце: ещё ≈{data.access.positions_left} {plural(data.access.positions_left, "позиция", "позиции", "позиций")}</span> : null}</div>
       {groups.map((g) => {
         const first = g.rows[0];
         const running = g.rows.some((r) => r.status === "running");
@@ -3722,6 +3723,7 @@ function SrcHistory({ cid, base }) {
 
 function SrcAccessNote({ acc }) {
   if (!acc || !acc.trial) {
+    if (acc && !acc.expired && acc.positions_left !== undefined && acc.positions_left < 5) return <div className="banner" style={{ background: "var(--warn-soft)", border: "1px solid rgba(245,181,68,.35)", fontSize: 13.5 }}><Icon name="clock" size={18} style={{ color: "var(--warn)" }} /><span style={{ flex: "1 1 220px" }}>{acc.positions_left > 0 ? `По тарифу в этом месяце осталось ${acc.positions_left} ${plural(acc.positions_left, "позиция", "позиции", "позиций")}.` : "Поиски по вашему тарифу в этом месяце закончились."} Напишите нам — расширим тариф.</span>{acc.sales && <a className="btn sm soft" href={acc.sales} target="_blank" rel="noreferrer">Расширить</a>}</div>;
     if (acc && acc.expired) return <div className="banner" style={{ background: "var(--warn-soft)", border: "1px solid rgba(245,181,68,.35)", fontSize: 13.5 }}><Icon name="clock" size={18} style={{ color: "var(--warn)" }} /><span style={{ flex: "1 1 220px" }}>Срок подписки закончился — продлите её, чтобы искать дальше. История и заявки сохранены.</span>{acc.sales && <a className="btn sm soft" href={acc.sales} target="_blank" rel="noreferrer">Продлить</a>}</div>;
     return null;
   }
@@ -4428,7 +4430,7 @@ function AdminSrcOverview() {
         <Kpi label="Закупщиков" value={num(k.clients)}><span>пробных {k.trial} · платных {k.paid}</span>{k.new_7 > 0 && <span className="up">+{k.new_7} за неделю</span>}</Kpi>
         <Kpi label="Доход в месяц" value={rub(k.mrr)}><span>по активным подпискам</span></Kpi>
         <Kpi label="Поисков" value={num(k.searches_30)}><span>сегодня {k.searches_today}{k.errors_30 ? ` · с ошибкой ${k.errors_30}` : ""}</span></Kpi>
-        <Kpi label="Расход на Яндекс" value={rub(k.cost_30)}><span>≈0,5 ₽ за запрос, 3 запроса на позицию</span></Kpi>
+        <Kpi label="Расход: Яндекс + ИИ" value={rub(k.cost_30)}><span>позиция в среднем ≈{String(k.pos_cost).replace(".", ",")} ₽</span>{k.income_vs_cost && k.income_vs_cost[0] > 0 && <span>платные: {rub(k.income_vs_cost[1])} из {rub(k.income_vs_cost[0])} дохода</span>}</Kpi>
         <Kpi label="Заявок поставщикам" value={num(k.rfq_sent_30)}><span>ответили {k.rfq_answers_30}</span></Kpi>
       </div>
       <section className="card" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -4449,7 +4451,7 @@ function AdminSrcOverview() {
   );
 }
 
-function SubModal({ c, onClose, onSaved }) {
+function SubModal({ c, onClose, onSaved, econ }) {
   const { api, toast } = useApp();
   const plus = (days) => { const base = c.paid_until && new Date(c.paid_until) > new Date() ? new Date(c.paid_until) : new Date(); base.setDate(base.getDate() + days); return base.toISOString().slice(0, 10); };
   const [f, setF] = useState({ plan: c.plan === "Пробный" ? "Закупки" : (c.plan || "Закупки"), plan_price: c.plan_price || "", paid_until: c.paid_until ? String(c.paid_until).slice(0, 10) : plus(30), status: c.status || "active" });
@@ -4464,6 +4466,12 @@ function SubModal({ c, onClose, onSaved }) {
       <Btn kind="primary" loading={busy} onClick={() => save(f)}>Сохранить</Btn>
     </>}>
       <div className="hint" style={{ lineHeight: 1.5 }}>С подпиской закупщик видит всех поставщиков, базу и шлёт заявки без ограничений пробного.</div>
+      {econ && (() => {
+        const price = Number(f.plan_price) || 0;
+        const budget = Math.max(price * econ.budget_share / 100, econ.min_budget);
+        const pos = Math.floor(budget / (econ.pos_cost || 3));
+        return <div className="banner" style={{ background: "var(--accent-soft)", fontSize: 13.5, lineHeight: 1.5 }}><span style={{ flex: "1 1 220px" }}>При цене {rub(price)} закупщик сможет потратить на поиски не больше <b>{rub(Math.round(budget))}</b> в месяц ({econ.budget_share}% от цены) — это ≈<b>{pos} {plural(pos, "позиция", "позиции", "позиций")}</b>. Дальше поиск остановится и вам придёт уведомление.</span></div>;
+      })()}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(160px, 100%), 1fr))", gap: 12 }}>
         <label className="lbl">Тариф<input className="inp" value={f.plan} onChange={(e) => setF({ ...f, plan: e.target.value })} maxLength={40} /></label>
         <label className="lbl">Цена в месяц, ₽<input className="inp" inputMode="numeric" value={f.plan_price} onChange={(e) => setF({ ...f, plan_price: e.target.value })} /></label>
@@ -4520,6 +4528,7 @@ function AdminSrcClients() {
             <span><span className="hint">Поисков: </span><b>{c.searches}</b>{c.searches_30 !== c.searches ? <span className="hint"> · за 30 дней {c.searches_30}</span> : null}</span>
             <span><span className="hint">Заявок КП: </span><b>{c.rfqs}</b></span>
             <span><span className="hint">Последний поиск: </span><b>{c.last_search ? whenShort(c.last_search) : "—"}</b></span>
+            <span><span className="hint">Расход за 30 дней: </span><b style={{ color: c.budget && c.spent_30 >= c.budget * 0.9 ? "var(--bad)" : undefined }}>{rub(Math.round(c.spent_30 || 0))}</b>{c.budget ? <span className="hint"> из {rub(c.budget)}</span> : <span className="hint"> · пробный</span>}</span>
           </div>
           <div className="wrapflex" style={{ gap: 8 }}>
             <Btn size="sm" icon="eye" onClick={() => nav(`c/${c.id}/search`)}>Кабинет</Btn>
@@ -4528,7 +4537,7 @@ function AdminSrcClients() {
           </div>
         </article>
       ))}
-      {sub && <SubModal c={sub} onClose={() => setSub(null)} onSaved={reload} />}
+      {sub && <SubModal c={sub} econ={data} onClose={() => setSub(null)} onSaved={reload} />}
       {del && <Confirm title="Удалить закупщика?" danger ok="Удалить" text={`«${del.name}»: кабинет, поиски и заявки будут удалены, войти он больше не сможет.`}
         onOk={async () => { try { await api.post("/api/delete-client", { client_id: del.id }); toast("Удалено"); reload(); } catch (e) { toast(e.message, "bad"); throw e; } }} onClose={() => setDel(null)} />}
     </div>
@@ -4549,7 +4558,9 @@ function AdminSrcSettings() {
     ["free_items", "Позиций в одном поиске на пробном", "сырьё + упаковка + что угодно — считается одним поиском"],
     ["free_rfq", "Заявок КП на пробном", "сколько открытых поставщиков можно выбрать в одну заявку"],
     ["paid_per_day", "Поисков в день по подписке", "≈1,5 ₽ за каждую позицию на Яндекс"],
-    ["batch_max", "Позиций в одном поиске по подписке", "больше позиций — дольше поиск и выше расход"]];
+    ["batch_max", "Позиций в одном поиске по подписке", "больше позиций — дольше поиск и выше расход"],
+    ["budget_share", "Расход закупщика, % от цены тарифа", "сколько из его оплаты можно потратить на Яндекс и ИИ — дальше поиск останавливается"],
+    ["min_budget", "Минимальный лимит расхода, ₽ в месяц", "для подписок с ценой 0 ₽ (подарок, тест)"]];
   return (
     <div className="wrap">
       <PageHead title="Настройки закупок" sub="Пробный доступ, лимиты и подключения" />
