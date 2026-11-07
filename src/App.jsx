@@ -1983,6 +1983,18 @@ function AdminSystem() {
           </section>
         ))}
       </div>
+      {data.egress_by && (data.egress_by.tables || []).length > 0 && (
+        <section className="card" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ paddingBottom: 6 }}><h2 className="h2">Кто тратит трафик базы</h2><div className="hint" style={{ marginTop: 2 }}>за {data.egress_by.days} дня · по серверам и таблицам</div></div>
+          {(data.egress_by.servers || []).length > 1 && <div className="banner" style={{ background: "var(--warn-soft)", fontSize: 13.5 }}><span style={{ flex: "1 1 220px" }}>К базе подключено несколько серверов ({data.egress_by.servers.map((x) => x.name).join(", ")}). Работать должен один — лишние копии в Railway удалите: каждая тратит трафик.</span></div>}
+          {[["Серверы", data.egress_by.servers], ["Таблицы", data.egress_by.tables]].map(([t, list]) => (
+            <div key={t} style={{ display: "flex", flexDirection: "column" }}>
+              <div className="hint" style={{ padding: "8px 0 2px", fontWeight: 800 }}>{t}</div>
+              {list.map((x) => <div key={x.name} className="between" style={{ padding: "7px 0", borderTop: "1px solid var(--line3)", fontSize: 13.5 }}><span className="dim" style={{ wordBreak: "break-all" }}>{x.name}{x.name === data.egress_by.this_server ? " (этот)" : ""}</span><b>{bytes(x.bytes)}</b></div>)}
+            </div>
+          ))}
+        </section>
+      )}
       <div className="cols">
         <section className="card col" style={{ flex: "3 1 520px", gap: 2 }}>
           <div className="between" style={{ paddingBottom: 8 }}><h2 className="h2">Журнал событий</h2><span className="hint">обновления, копии, сбои</span></div>
@@ -3691,7 +3703,7 @@ function srcGroups(items) {
 function SrcHistory({ cid, base }) {
   const { api, nav } = useApp();
   const B = base || `c/${cid}`;
-  const { data } = useLoad(() => api.get(`/api/c/${cid}/src/searches`), [cid], 3000);
+  const { data } = useLoad(() => api.get(`/api/c/${cid}/src/searches`), [cid], 10000);
   if (!data || !data.items.length) return null;
   const groups = srcGroups(data.items).slice(0, 12);
   return (
@@ -4067,7 +4079,7 @@ function SrcResult({ cid, sid, base }) {
   const running = s?.status === "running" || (s?.batch || []).some((b) => b.status === "running");
   useEffect(() => {
     if (!running) return undefined;
-    const t = setInterval(async () => { try { setData(await api.get(`/api/c/${cid}/src/search/${sid}`)); } catch (e) { /* */ } }, 2000);
+    const t = setInterval(async () => { try { setData(await api.get(`/api/c/${cid}/src/search/${sid}`)); } catch (e) { /* */ } }, 3000);
     return () => clearInterval(t);
   }, [running, cid, sid]); // eslint-disable-line
   if (loading && !s) return <PageSkeleton />;
@@ -4199,7 +4211,7 @@ function SrcResult({ cid, sid, base }) {
 function SrcRfqs({ cid, base }) {
   const { api, nav, toast } = useApp();
   const B = base || `c/${cid}`;
-  const { data, error, loading, reload } = useLoad(() => api.get(`/api/c/${cid}/src/rfqs`), [cid], 2000);
+  const { data, error, loading, reload } = useLoad(() => api.get(`/api/c/${cid}/src/rfqs`), [cid], 15000);
   const [open, setOpen] = useState(null);
   if (loading && !data) return <PageSkeleton />;
   if (error && !data) return <div className="wrap"><ErrorBox error={error} onRetry={reload} /></div>;
@@ -4417,7 +4429,7 @@ function AdminSrcSetup() {
 // ════════════════ АДМИНКА: раздел «Закупки» ════════════════
 function AdminSrcOverview() {
   const { api, nav } = useApp();
-  const { data, error, loading, reload } = useLoad(() => api.get("/api/admin/src/overview"), [], 5000);
+  const { data, error, loading, reload } = useLoad(() => api.get("/api/admin/src/overview"), [], 30000);
   if (loading && !data) return <PageSkeleton />;
   if (error && !data) return <div className="wrap"><ErrorBox error={error} onRetry={reload} /></div>;
   if (!data.schema) return <div className="wrap"><PageHead title="Закупки" /><div className="card"><Empty icon="db" title="База ещё не обновлена" text="Запустите update-sourcing.sql в Supabase — после этого здесь появятся закупщики и поиски." /></div></div>;
@@ -4487,7 +4499,7 @@ function SubModal({ c, onClose, onSaved, econ }) {
 
 function AdminSrcClients() {
   const { api, nav, toast } = useApp();
-  const { data, error, loading, reload } = useLoad(() => api.get("/api/admin/src/clients"), [], 5000);
+  const { data, error, loading, reload } = useLoad(() => api.get("/api/admin/src/clients"), [], 30000);
   const [flt, setFlt] = useState("all");
   const [q, setQ] = useState("");
   const [sub, setSub] = useState(null);
