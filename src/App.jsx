@@ -861,12 +861,12 @@ function Signup({ onDone }) {
       <span style={{ width: 48, height: 48, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ok-soft)", color: "var(--ok)" }}><Icon name="check" size={26} sw={2.6} /></span>
       <div>
         <h1 className="h2" style={{ fontSize: 22 }}>Готово! Кабинет создан</h1>
-        <div className="sub" style={{ marginTop: 6, lineHeight: 1.5 }}>{done.trial_days} дней бесплатно — до {dLong(done.trial_until)}. До {done.limit} поисков в день.</div>
+        <div className="sub" style={{ marginTop: 6, lineHeight: 1.5 }}>Пробный доступ до {dLong(done.trial_until)}: {done.free_searches} {plural(done.free_searches || 0, "бесплатный поиск", "бесплатных поиска", "бесплатных поисков")}, в результатах откроем {done.free_visible} {plural(done.free_visible || 0, "поставщика", "поставщиков", "поставщиков")}. Полный доступ — по подписке.</div>
       </div>
       <ol style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 8, fontSize: 14.5, lineHeight: 1.5 }}>
         <li>Напишите, что ищете — например, «магния бисглицинат 100 кг».</li>
         <li>Через 1–2 минуты получите поставщиков: цены, фасовку, наличие, контакты и проверку компании.</li>
-        <li>Отметьте подходящих и отправьте всем один запрос КП — ответы соберутся в кабинете.</li>
+        <li>По подписке — все поставщики, база компаний и заявки на КП сразу нескольким поставщикам.</li>
       </ol>
       <Btn kind="primary" block icon="search" onClick={() => onDone(done.tok)}>Начать поиск</Btn>
       {done.tg_link && <a className="btn block" href={done.tg_link} target="_blank" rel="noreferrer"><Icon name="plane" size={18} sw={2} />Искать и из Telegram</a>}
@@ -896,6 +896,7 @@ function TrialBanner({ trial, cid }) {
   const { nav } = useApp();
   if (!trial) return null;
   const left = trial.left;
+  if (trial.product === "sourcing") return null; // у закупщика пробный доступ показывают сами страницы поиска
   if (trial.items === 0) {
     return (
       <div className="banner" style={{ background: "var(--accent-soft)", border: "1px solid rgba(47,99,230,.3)", fontSize: 13.5, padding: "12px 14px", marginBottom: 16 }}>
@@ -931,11 +932,20 @@ function Sidebar({ scope, page, cid, badges, onLogout }) {
   const { nav, me, isAdmin } = useApp();
   if (scope === "admin") {
     const ok = badges?.system_ok !== false;
+    const srcMode = isSrcAdminPage(page);
     return (
       <nav className="side" aria-label="Разделы админки">
         <div className="brand"><span className="brand-logo"><Icon name="chat" size={18} sw={2} /></span><div><div style={{ fontWeight: 800, fontSize: 15 }}>ChatAIbot</div><div className="hint" style={{ fontSize: 12 }}>Админ-панель</div></div></div>
+        <AdminModeSwitch srcMode={srcMode} />
+        {srcMode ? (<>
+          <NavItem icon="grid" label="Обзор закупок" on={page === "src" && !subPage()} onClick={() => nav("admin/src")} />
+          <NavItem icon="users" label="Закупщики" on={page === "src" && subPage() === "clients"} onClick={() => nav("admin/src/clients")} />
+          <NavItem icon="flask" label="Мой поиск" on={page === "find"} onClick={() => nav("admin/find")} />
+          <NavItem icon="sliders" label="Настройки" on={page === "src" && subPage() === "settings"} onClick={() => nav("admin/src/settings")} />
+        </>) : (<>
         <NavItem icon="grid" label="Обзор" on={page === "overview"} onClick={() => nav("admin")} />
         <NavItem icon="users" label="Клиенты" on={page === "clients" || page === "bot"} onClick={() => nav("admin/clients")} badge={badges?.clients} badgeKind="plain" />
+        </>)}
         <NavItem icon="pulse" label="Система" on={page === "system"} onClick={() => nav("admin/system")} badge={badges?.warnings} badgeKind="warn" />
         <div style={{ flex: 1 }} />
         <button type="button" onClick={() => nav("admin/system")} className="card tight" style={{ textAlign: "left", cursor: "pointer", display: "flex", flexDirection: "column", gap: 6, background: "var(--card)" }}>
@@ -963,7 +973,7 @@ function Sidebar({ scope, page, cid, badges, onLogout }) {
         <div style={{ flex: 1 }} />
         <div className="row" style={{ padding: "12px 10px 0" }}>
           {isAdmin ? (
-            <button type="button" className="btn sm block" onClick={() => nav(`admin/bot/${cid}`)}><Icon name="left" size={16} />В админку</button>
+            <button type="button" className="btn sm block" onClick={() => nav("admin/src/clients")}><Icon name="left" size={16} />В админку</button>
           ) : (<>
             <span className="tile" style={{ width: 32, height: 32, borderRadius: 16, fontSize: 12 }}>{initials(me?.login)}</span>
             <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis" }}>{me?.login}</div><div className="hint" style={{ fontSize: 12 }}>закупщик</div></div>
@@ -1005,7 +1015,10 @@ function MobileBars({ scope, page, cid, badges, onLogout }) {
   const { nav, isAdmin, me } = useApp();
   const [more, setMore] = useState(false);
   const srcCab = scope === "cab" && isSrcCab(me, badges, isAdmin);
+  const srcAdm = scope === "admin" && isSrcAdminPage(page);
+  const sp = subPage();
   const tabs = srcCab ? [["flask", "Сырьё", "search", `c/${cid}/search`], ["box", "Упаковка", "pack", `c/${cid}/pack`], ["mail", "Заявки", "rfq", `c/${cid}/rfq`]]
+    : srcAdm ? [["grid", "Обзор", "src:", "admin/src"], ["users", "Закупщики", "src:clients", "admin/src/clients"], ["flask", "Поиск", "find", "admin/find"]]
     : scope === "admin"
     ? [["grid", "Обзор", "overview", "admin"], ["users", "Клиенты", "clients", "admin/clients"], ["pulse", "Система", "system", "admin/system", badges?.warnings, "warn"]]
     : [["home", "Сегодня", "today", `c/${cid}/today`], ["bag", "Заказы", "orders", `c/${cid}/orders`, badges?.new_orders], ["chat", "Диалоги", "dialogs", `c/${cid}/dialogs`, badges?.waiting, "warn"]];
@@ -1017,16 +1030,16 @@ function MobileBars({ scope, page, cid, badges, onLogout }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 15, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
         {scope === "admin"
-          ? <div className="hint" style={{ fontSize: 12 }}>админка</div>
+          ? <div className="hint" style={{ fontSize: 12 }}>админка · {srcAdm ? "закупки" : "ИИ-продавец"}</div>
           : srcCab ? <div className="hint" style={{ fontSize: 12 }}>закупки · поиск поставщиков</div>
           : <div className="row" style={{ gap: 6, fontSize: 12, color: "var(--dim)" }}><span className="dot" style={{ width: 7, height: 7, background: paused ? "var(--bad)" : "var(--ok)" }} />{paused ? "Бот на паузе" : `Бот на связи · «${MODE[badges?.mode || "auto"].label}»`}</div>}
       </div>
-      {scope === "cab" && isAdmin && <button type="button" className="btn sm" onClick={() => nav(`admin/bot/${cid}`)}><Icon name="left" size={16} />Админка</button>}
+      {scope === "cab" && isAdmin && <button type="button" className="btn sm" onClick={() => nav(srcCab ? "admin/src/clients" : `admin/bot/${cid}`)}><Icon name="left" size={16} />Админка</button>}
       {scope === "admin" && badges && <button type="button" onClick={() => nav("admin/system")} className="pill" style={{ border: 0, cursor: "pointer", minHeight: 36, background: badges.warnings ? "var(--warn-soft)" : "var(--ok-soft)", color: badges.warnings ? "var(--warn)" : "var(--ok)" }}>{badges.warnings ? `${badges.warnings} ${plural(badges.warnings, "предупреждение", "предупреждения", "предупреждений")}` : "всё работает"}</button>}
     </div>
     <nav className="mtabs" aria-label="Разделы">
       {tabs.map(([ic, l, pg, path, b, bk]) => (
-        <button key={pg} type="button" className={page === pg || (pg === "clients" && page === "bot") || (srcCab && pg === "search" && page === "result") ? "on" : ""} aria-current={page === pg ? "page" : undefined} onClick={() => nav(path)}>
+        <button key={pg} type="button" className={page === pg || (pg === "clients" && page === "bot") || (srcCab && pg === "search" && page === "result") || (srcAdm && pg === `src:${sp || ""}` && page === "src") ? "on" : ""} aria-current={page === pg ? "page" : undefined} onClick={() => nav(path)}>
           <Icon name={ic} size={22} />{l}
           {b > 0 && <span className="mb" style={bk === "warn" ? { background: "var(--warn)", color: "#1A1305" } : { background: "var(--accent)", color: "#fff" }}>{b}</span>}
         </button>
@@ -1042,7 +1055,10 @@ function MobileBars({ scope, page, cid, badges, onLogout }) {
             <NavItem icon="box" label="Каталог" on={page === "catalog"} onClick={() => { setMore(false); nav(`c/${cid}/catalog`); }} />
             <NavItem icon="sliders" label="Настройки бота" on={page === "settings"} onClick={() => { setMore(false); nav(`c/${cid}/settings`); }} />
           </>}
-          {scope === "cab" && isAdmin && <NavItem icon="left" label="Вернуться в админку" onClick={() => { setMore(false); nav(`admin/bot/${cid}`); }} />}
+          {scope === "admin" && <AdminModeSwitch srcMode={srcAdm} onPick={() => setMore(false)} />}
+          {srcAdm && <NavItem icon="sliders" label="Настройки закупок" on={page === "src" && sp === "settings"} onClick={() => { setMore(false); nav("admin/src/settings"); }} />}
+          {srcAdm && <NavItem icon="pulse" label="Система" on={page === "system"} onClick={() => { setMore(false); nav("admin/system"); }} />}
+          {scope === "cab" && isAdmin && <NavItem icon="left" label="Вернуться в админку" onClick={() => { setMore(false); nav(srcCab ? "admin/src/clients" : `admin/bot/${cid}`); }} />}
           <NavItem icon="logout" label="Выйти" onClick={() => { setMore(false); onLogout(); }} />
         </div>
       </Modal>
@@ -1138,7 +1154,9 @@ export default function App() {
 
   let body = null;
   if (scope === "admin") {
-    if (page === "clients") body = <AdminClients />;
+    if (page === "src") body = route[2] === "clients" ? <AdminSrcClients /> : route[2] === "settings" ? <AdminSrcSettings /> : <AdminSrcOverview />;
+    else if (page === "find") body = <AdminFind sub={route[2]} sid={route[3]} />;
+    else if (page === "clients") body = <AdminClients />;
     else if (page === "bot") body = <AdminBot cid={route[2]} tab={route[3] || "bot"} />;
     else if (page === "system") body = <AdminSystem />;
     else body = <AdminOverview />;
@@ -1174,7 +1192,7 @@ export default function App() {
             <div className="hide-m" style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 36px", background: "var(--accent-soft)", borderBottom: "1px solid rgba(47,99,230,.3)", fontSize: 13.5 }}>
               <Icon name="eye" size={18} />
               <span style={{ flex: 1 }}>Вы смотрите кабинет клиента «{badges?.name || "…"}» — так его видит владелец бизнеса.</span>
-              <button type="button" className="btn sm soft" onClick={() => nav(`admin/bot/${cid}`)}>Вернуться в админку</button>
+              <button type="button" className="btn sm soft" onClick={() => nav(srcCab ? "admin/src/clients" : `admin/bot/${cid}`)}>Вернуться в админку</button>
             </div>
           )}
           {me && !me.schema && isAdmin && (
@@ -1945,7 +1963,6 @@ function AdminSystem() {
           </section>
         ))}
       </div>
-      <AdminSrcSetup />
       <div className="cols">
         <section className="card col" style={{ flex: "3 1 520px", gap: 2 }}>
           <div className="between" style={{ paddingBottom: 8 }}><h2 className="h2">Журнал событий</h2><span className="hint">обновления, копии, сбои</span></div>
@@ -3564,6 +3581,20 @@ function isSrcCab(me, badges, isAdmin) {
   return (isAdmin ? badges?.business_type : (me?.client?.business_type || badges?.business_type)) === "sourcing";
 }
 
+function isSrcAdminPage(page) { return page === "src" || page === "find"; }
+
+function subPage() { const r = parseHash(); return r[0] === "admin" ? (r[2] || "") : ""; }
+
+function AdminModeSwitch({ srcMode, onPick }) {
+  const { nav } = useApp();
+  return (
+    <div className="seg" role="group" aria-label="Направление" style={{ margin: "0 4px 12px", display: "flex" }}>
+      <button type="button" aria-pressed={!srcMode} className={!srcMode ? "on" : ""} style={{ flex: 1 }} onClick={() => { onPick && onPick(); nav("admin"); }}>ИИ-продавец</button>
+      <button type="button" aria-pressed={srcMode} className={srcMode ? "on" : ""} style={{ flex: 1 }} onClick={() => { onPick && onPick(); nav("admin/src"); }}>Закупки</button>
+    </div>
+  );
+}
+
 function useSrcConfig() {
   const { api } = useApp();
   return useLoad(() => api.get("/api/src/config"), [], false);
@@ -3617,15 +3648,16 @@ function SrcTgCard({ cid }) {
   );
 }
 
-function SrcHistory({ cid, kind }) {
+function SrcHistory({ cid, kind, base }) {
   const { api, nav } = useApp();
+  const B = base || `c/${cid}`;
   const { data } = useLoad(() => api.get(`/api/c/${cid}/src/searches?kind=${kind}`), [cid, kind], 3000);
   if (!data || !data.items.length) return null;
   return (
     <section className="card" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <div className="between" style={{ paddingBottom: 6 }}><h2 className="h2">Недавние поиски</h2>{data.left !== null && data.left !== undefined && <span className="hint">сегодня осталось {data.left} из {data.limit}</span>}</div>
+      <div className="between" style={{ paddingBottom: 6 }}><h2 className="h2">Недавние поиски</h2>{data.left !== null && data.left !== undefined && <span className="hint">{data.access?.trial ? `бесплатных поисков: ${data.left} из ${data.limit}` : `сегодня осталось ${data.left} из ${data.limit}`}</span>}</div>
       {data.items.slice(0, 12).map((s) => (
-        <button key={s.id} type="button" className="list-row" onClick={() => nav(`c/${cid}/result/${s.id}`)} style={{ background: "transparent", border: 0, borderTop: "1px solid var(--line3)", color: "var(--text)", textAlign: "left", cursor: "pointer", width: "100%", fontSize: 14 }}>
+        <button key={s.id} type="button" className="list-row" onClick={() => nav(`${B}/result/${s.id}`)} style={{ background: "transparent", border: 0, borderTop: "1px solid var(--line3)", color: "var(--text)", textAlign: "left", cursor: "pointer", width: "100%", fontSize: 14 }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title || s.query}</div>
             <div className="hint">{whenShort(s.created_at)}{s.params?.qty ? ` · ${s.params.qty}` : ""}</div>
@@ -3640,10 +3672,30 @@ function SrcHistory({ cid, kind }) {
   );
 }
 
-function SrcSearch({ cid, kind }) {
+function SrcAccessNote({ acc }) {
+  if (!acc || !acc.trial) {
+    if (acc && acc.expired) return <div className="banner" style={{ background: "var(--warn-soft)", border: "1px solid rgba(245,181,68,.35)", fontSize: 13.5 }}><Icon name="clock" size={18} style={{ color: "var(--warn)" }} /><span style={{ flex: "1 1 220px" }}>Срок подписки закончился — продлите её, чтобы искать дальше. История и заявки сохранены.</span>{acc.sales && <a className="btn sm soft" href={acc.sales} target="_blank" rel="noreferrer">Продлить</a>}</div>;
+    return null;
+  }
+  const used = acc.free_left <= 0;
+  return (
+    <div className="banner" style={{ background: used ? "var(--warn-soft)" : "var(--accent-soft)", border: `1px solid ${used ? "rgba(245,181,68,.35)" : "rgba(47,99,230,.3)"}`, fontSize: 13.5 }}>
+      <Icon name={used ? "shield" : "sparkle"} size={18} style={{ color: used ? "var(--warn)" : "var(--accent-text)" }} />
+      <span style={{ flex: "1 1 220px", lineHeight: 1.45 }}>{used
+        ? <><b>Бесплатный поиск использован.</b> Чтобы искать дальше, видеть всех поставщиков с контактами и отправлять им заявки — оформите подписку.</>
+        : <><b>Пробный доступ:</b> {acc.free_left} {plural(acc.free_left, "бесплатный поиск", "бесплатных поиска", "бесплатных поисков")}, в результатах откроем {acc.visible} {plural(acc.visible, "поставщика", "поставщиков", "поставщиков")}. Полный доступ — по подписке.</>}</span>
+      {acc.sales && <a className={`btn sm ${used ? "primary" : "soft"}`} href={acc.sales} target="_blank" rel="noreferrer">Оформить подписку</a>}
+    </div>
+  );
+}
+
+function SrcSearch({ cid, kind, base }) {
   const { api, nav, toast } = useApp();
+  const B = base || `c/${cid}`;
   const cfgL = useSrcConfig();
   const cfg = cfgL.data;
+  const accL = useLoad(() => api.get(`/api/c/${cid}/src/access`), [cid]);
+  const acc = accL.data;
   const [q, setQ] = useState("");
   const [qty, setQty] = useState("");
   const [region, setRegion] = useState("msk");
@@ -3664,7 +3716,7 @@ function SrcSearch({ cid, kind }) {
     try {
       const body = raw ? { kind, query: (query || q).trim(), qty, region, grade, docs } : { kind, query: q.trim(), region, pack, qty: pack.qty || "" };
       const r = await api.post(`/api/c/${cid}/src/search`, body);
-      nav(`c/${cid}/result/${r.id}`);
+      nav(`${B}/result/${r.id}`);
     } catch (e) { toast(e.message, "bad"); setBusy(false); }
   };
   const curCat = (cfg.categories || []).find((c) => c.key === cat);
@@ -3672,6 +3724,7 @@ function SrcSearch({ cid, kind }) {
     <div className="wrap">
       <PageHead title={raw ? "Поиск сырья" : "Поиск упаковки"} sub={raw ? "Найдём поставщиков, цены и контакты, подскажем названия и аналоги — за 1–2 минуты" : "Банки, флаконы, крышки, мембраны, этикетки, саше, блистеры — по вашим параметрам"} />
       {!cfg.search_ready && <div className="banner" style={{ background: "var(--warn-soft)", border: "1px solid rgba(245,181,68,.35)", fontSize: 13.5 }}><Icon name="clock" size={18} style={{ color: "var(--warn)" }} /><span style={{ flex: "1 1 220px" }}>Поиск в интернете подключается — скоро заработает.</span></div>}
+      <SrcAccessNote acc={acc} />
       <form className="card" style={{ display: "flex", flexDirection: "column", gap: 16 }} onSubmit={(e) => { e.preventDefault(); if (canGo) go(); }}>
         {raw ? (<>
           <label className="lbl">Что ищете
@@ -3704,10 +3757,10 @@ function SrcSearch({ cid, kind }) {
           <label className="lbl"><span>Своими словами <span className="hint" style={{ fontWeight: 600 }}>· если удобнее</span></span><input className="inp" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Банка HDPE 150 мл белая, широкое горло" maxLength={200} /></label>
           <div className="lbl">Куда поставка<Seg value={region} onChange={setRegion} label="Регион" options={cfg.regions.map((r) => [r.key, r.title])} /></div>
         </>)}
-        <Btn kind="primary" type="submit" icon="search" loading={busy} disabled={!canGo || !cfg.search_ready} style={{ minHeight: 48, fontSize: 15 }}>Найти поставщиков</Btn>
+        <Btn kind="primary" type="submit" icon="search" loading={busy} disabled={!canGo || !cfg.search_ready || (acc && acc.trial && acc.free_left <= 0) || (acc && acc.expired)} style={{ minHeight: 48, fontSize: 15 }}>Найти поставщиков</Btn>
         <SrcTgCard cid={cid} />
       </form>
-      <SrcHistory cid={cid} kind={kind} />
+      <SrcHistory cid={cid} kind={kind} base={base} />
     </div>
   );
 }
@@ -3767,8 +3820,9 @@ function rfqDraft(s, cfg) {
   return { title: `${what}${p.qty ? `, ${p.qty}` : ""}`.slice(0, 150), body: rows.join("\n") };
 }
 
-function RfqModal({ cid, search, offers, onClose }) {
+function RfqModal({ cid, search, offers, onClose, base }) {
   const { api, nav, toast } = useApp();
+  const B = base || `c/${cid}`;
   const prof = useLoad(() => api.get(`/api/c/${cid}/src/profile`), [cid], false);
   const cfgL = useSrcConfig();
   const [f, setF] = useState(null);
@@ -3787,7 +3841,7 @@ function RfqModal({ cid, search, offers, onClose }) {
     try {
       await api.post(`/api/c/${cid}/src/rfq`, { search_id: search.id, title: f.title, body: f.body, contact: { name: f.name, company: f.company, email: f.email, phone: f.phone }, targets });
       toast(`Заявка отправлена: ${targets.length} ${plural(targets.length, "поставщику", "поставщикам", "поставщикам")}`);
-      onClose(); nav(`c/${cid}/rfq`);
+      onClose(); nav(`${B}/rfq`);
     } catch (e) { setErr(e.message); setBusy(false); }
   };
   const mailText = `${f.body}\n\n${[f.name, f.company, f.phone, f.email].filter(Boolean).join(", ")}`;
@@ -3824,8 +3878,21 @@ function RfqModal({ cid, search, offers, onClose }) {
   );
 }
 
-function SrcResult({ cid, sid }) {
+function LockedCard({ o }) {
+  return (
+    <article className="card tight" aria-label="Поставщик скрыт — доступен по подписке" style={{ display: "flex", alignItems: "center", gap: 12, background: "repeating-linear-gradient(135deg, var(--card), var(--card) 10px, #141820 10px, #141820 20px)" }}>
+      <span style={{ width: 36, height: 36, borderRadius: 10, background: "#1B2029", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--faint)", flexShrink: 0 }}><Icon name="shield" size={18} /></span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 800, fontSize: 14, filter: "blur(5px)", userSelect: "none" }} aria-hidden="true">ООО «Поставщик сырья»</div>
+        <div className="hint">{[o.city, SRC_KIND[o.kind], o.has_price ? "цена указана" : "", o.has_email ? "есть почта" : ""].filter(Boolean).join(" · ") || "поставщик"} · по подписке</div>
+      </div>
+    </article>
+  );
+}
+
+function SrcResult({ cid, sid, base }) {
   const { api, nav, toast } = useApp();
+  const B = base || `c/${cid}`;
   const cfg = useSrcConfig().data;
   const { data: s, error, loading, reload, setData } = useLoad(() => api.get(`/api/c/${cid}/src/search/${sid}`), [cid, sid], false);
   const [picked, setPicked] = useState([]);
@@ -3847,16 +3914,19 @@ function SrcResult({ cid, sid }) {
     try {
       const p = s.params || {};
       const r = await api.post(`/api/c/${cid}/src/search`, { kind: s.kind, query, qty: p.qty, region: p.region, grade: p.grade, docs: p.docs, pack: query === s.query ? p.pack : {} });
-      setPicked([]); nav(`c/${cid}/result/${r.id}`);
+      setPicked([]); nav(`${B}/result/${r.id}`);
     } catch (e) { toast(e.message, "bad"); }
     setBusy("");
   };
-  const pickedOffers = offers.filter((o) => picked.includes(o.domain));
-  const withMail = offers.filter((o) => (o.emails || []).length).length;
+  const openOffers = offers.filter((o) => !o.locked);
+  const pickedOffers = openOffers.filter((o) => picked.includes(o.domain));
+  const withMail = openOffers.filter((o) => (o.emails || []).length).length;
+  const maxPick = s.access?.rfq_max || 10;
+  const lk = s.locked;
   return (
     <div className="wrap">
       <PageHead title={info.title || s.title || s.query} sub={srcParamsLine(s, cfg) || "Поиск поставщиков"}
-        back={<button type="button" className="btn ghost sm" style={{ alignSelf: "flex-start", padding: 0, minHeight: 28 }} onClick={() => nav(`c/${cid}/${listPage}`)}><Icon name="left" size={16} />Новый поиск</button>} />
+        back={<button type="button" className="btn ghost sm" style={{ alignSelf: "flex-start", padding: 0, minHeight: 28 }} onClick={() => nav(`${B}/${listPage}`)}><Icon name="left" size={16} />Новый поиск</button>} />
       {running && (
         <section className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }} aria-live="polite">
           <div className="row"><span className="spin" /><b style={{ fontSize: 15 }}>{s.stage || "Ищу"}…</b></div>
@@ -3906,10 +3976,18 @@ function SrcResult({ cid, sid }) {
         <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div className="between" style={{ flexWrap: "wrap" }}>
             <h2 className="h2">Поставщики · {offers.length}{running ? " (ищу ещё)" : ""}</h2>
-            {withMail > 0 && !running && <button type="button" className="btn ghost sm" onClick={() => setPicked(picked.length ? [] : offers.filter((o) => (o.emails || []).length).slice(0, 10).map((o) => o.domain))}>{picked.length ? "Снять выбор" : "Выбрать всех с почтой"}</button>}
+            {withMail > 0 && !running && <button type="button" className="btn ghost sm" onClick={() => setPicked(picked.length ? [] : openOffers.filter((o) => (o.emails || []).length).slice(0, maxPick).map((o) => o.domain))}>{picked.length ? "Снять выбор" : "Выбрать всех с почтой"}</button>}
           </div>
           {!running && offers.length === 0 && <div className="card"><Empty icon="search" title="Поставщиков с этой позицией не нашлось" text="Попробуйте другое название — подсказки выше, — или выберите «Вся Россия»." /></div>}
-          {offers.map((o) => <OfferCard key={o.domain} o={o} picked={picked.includes(o.domain)} onPick={() => setPicked(picked.includes(o.domain) ? picked.filter((x) => x !== o.domain) : [...picked, o.domain].slice(-10))} />)}
+          {lk && lk.hidden > 0 && !running && (
+            <div className="banner" style={{ background: "var(--accent-soft)", border: "1px solid rgba(47,99,230,.3)", fontSize: 13.5 }}>
+              <Icon name="shield" size={18} style={{ color: "var(--accent-text)" }} />
+              <span style={{ flex: "1 1 220px", lineHeight: 1.45 }}>Открыто {lk.visible} из {lk.visible + lk.hidden}. Ещё <b>{lk.hidden} {plural(lk.hidden, "поставщик", "поставщика", "поставщиков")}</b> с названиями, ценами и контактами — по подписке.</span>
+              {lk.sales && <a className="btn sm primary" href={lk.sales} target="_blank" rel="noreferrer">Оформить подписку</a>}
+            </div>
+          )}
+          {offers.map((o, i) => o.locked ? <LockedCard key={`l${i}`} o={o} />
+            : <OfferCard key={o.domain} o={o} picked={picked.includes(o.domain)} onPick={() => setPicked(picked.includes(o.domain) ? picked.filter((x) => x !== o.domain) : [...picked, o.domain].slice(-maxPick))} />)}
           {!running && offers.length > 0 && <div className="hint">Цены — как на сайтах поставщиков, могут быть устаревшими. Точную цену даст коммерческое предложение: отметьте поставщиков и нажмите «Запросить КП».</div>}
         </section>
       )}
@@ -3919,13 +3997,14 @@ function SrcResult({ cid, sid }) {
           <Btn kind="primary" icon="send" onClick={() => setRfq(true)}>Запросить КП</Btn>
         </div>
       )}
-      {rfq && <RfqModal cid={cid} search={s} offers={pickedOffers} onClose={() => setRfq(false)} />}
+      {rfq && <RfqModal cid={cid} base={base} search={s} offers={pickedOffers} onClose={() => setRfq(false)} />}
     </div>
   );
 }
 
-function SrcRfqs({ cid }) {
+function SrcRfqs({ cid, base }) {
   const { api, nav, toast } = useApp();
+  const B = base || `c/${cid}`;
   const { data, error, loading, reload } = useLoad(() => api.get(`/api/c/${cid}/src/rfqs`), [cid], 2000);
   const [open, setOpen] = useState(null);
   if (loading && !data) return <PageSkeleton />;
@@ -3934,7 +4013,7 @@ function SrcRfqs({ cid }) {
   return (
     <div className="wrap">
       <PageHead title="Заявки на КП" sub="Ответы поставщиков в одном месте — сравнивайте цены, сроки и документы" />
-      {!items.length && <div className="card"><Empty icon="mail" title="Заявок пока нет" text="Найдите поставщиков, отметьте нужных и нажмите «Запросить КП» — письмо уйдёт всем сразу." action={<Btn kind="primary" icon="search" onClick={() => nav(`c/${cid}/search`)}>Найти поставщиков</Btn>} /></div>}
+      {!items.length && <div className="card"><Empty icon="mail" title="Заявок пока нет" text="Найдите поставщиков, отметьте нужных и нажмите «Запросить КП» — письмо уйдёт всем сразу." action={<Btn kind="primary" icon="search" onClick={() => nav(`${B}/search`)}>Найти поставщиков</Btn>} /></div>}
       {items.map((r) => {
         const ts = r.targets || [];
         const cnt = (st) => ts.filter((t) => st.includes(t.status)).length;
@@ -3975,7 +4054,7 @@ function SrcRfqs({ cid }) {
                 );
               })}
               <div className="row" style={{ flexWrap: "wrap", gap: 8, borderTop: "1px solid var(--line3)", paddingTop: 10 }}>
-                {r.search_id && <Btn size="sm" onClick={() => nav(`c/${cid}/result/${r.search_id}`)}>К результатам поиска</Btn>}
+                {r.search_id && <Btn size="sm" onClick={() => nav(`${B}/result/${r.search_id}`)}>К результатам поиска</Btn>}
                 <Btn size="sm" kind="ghost" onClick={async () => { try { await api.post(`/api/c/${cid}/src/rfq/${r.id}/close`, { reopen: r.status === "closed" }); toast(r.status === "closed" ? "Заявка снова открыта" : "Заявка закрыта — новые ответы не принимаются"); reload(); } catch (e) { toast(e.message, "bad"); } }}>{r.status === "closed" ? "Открыть снова" : "Закрыть заявку"}</Btn>
               </div>
             </>)}
@@ -3998,7 +4077,8 @@ function SrcSuppliers({ cid }) {
       <label className="row card tight" style={{ gap: 10 }}><Icon name="search" size={18} style={{ color: "var(--faint)" }} /><input className="inp" style={{ border: 0, background: "transparent", padding: 0 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Компания, сайт, город или сырьё" aria-label="Поиск по базе" /></label>
       {loading && !data && <Skeleton h={300} />}
       {error && !data && <ErrorBox error={error} onRetry={reload} />}
-      {data && !data.items.length && <div className="card"><Empty icon="users" title={qq ? "Никого не нашлось" : "База пока пустая"} text={qq ? "Попробуйте другое слово." : "Запустите поиск сырья — найденные поставщики появятся здесь."} /></div>}
+      {data && data.locked && <div className="card"><Empty icon="shield" title="База поставщиков — по подписке" text={`Сейчас в базе ${data.total} ${plural(data.total, "компания", "компании", "компаний")} с контактами и ценами, она растёт с каждым поиском.`} action={data.sales && <a className="btn primary" href={data.sales} target="_blank" rel="noreferrer">Оформить подписку</a>} /></div>}
+      {data && !data.locked && !data.items.length && <div className="card"><Empty icon="users" title={qq ? "Никого не нашлось" : "База пока пустая"} text={qq ? "Попробуйте другое слово." : "Запустите поиск сырья — найденные поставщики появятся здесь."} /></div>}
       {data && data.items.map((s) => (
         <article key={s.domain} className="card tight" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
@@ -4137,5 +4217,189 @@ function AdminSrcSetup() {
         </div>
       )}
     </section>
+  );
+}
+
+// ════════════════ АДМИНКА: раздел «Закупки» ════════════════
+function AdminSrcOverview() {
+  const { api, nav } = useApp();
+  const { data, error, loading, reload } = useLoad(() => api.get("/api/admin/src/overview"), [], 5000);
+  if (loading && !data) return <PageSkeleton />;
+  if (error && !data) return <div className="wrap"><ErrorBox error={error} onRetry={reload} /></div>;
+  if (!data.schema) return <div className="wrap"><PageHead title="Закупки" /><div className="card"><Empty icon="db" title="База ещё не обновлена" text="Запустите update-sourcing.sql в Supabase — после этого здесь появятся закупщики и поиски." /></div></div>;
+  const k = data.kpi;
+  const open = (r) => nav(r.client_id === data.own ? `admin/find/result/${r.id}` : `c/${r.client_id}/result/${r.id}`);
+  return (
+    <div className="wrap">
+      <PageHead title="Закупки" sub="Поиск сырья и поставщиков · последние 30 дней" right={<Btn kind="primary" icon="search" onClick={() => nav("admin/find")}>Искать самому</Btn>} />
+      <div className="kpis">
+        <Kpi label="Закупщиков" value={num(k.clients)}><span>пробных {k.trial} · платных {k.paid}</span>{k.new_7 > 0 && <span className="up">+{k.new_7} за неделю</span>}</Kpi>
+        <Kpi label="Доход в месяц" value={rub(k.mrr)}><span>по активным подпискам</span></Kpi>
+        <Kpi label="Поисков" value={num(k.searches_30)}><span>сегодня {k.searches_today}{k.errors_30 ? ` · с ошибкой ${k.errors_30}` : ""}</span></Kpi>
+        <Kpi label="Расход на Яндекс" value={rub(k.cost_30)}><span>≈0,5 ₽ за запрос, 3 запроса на поиск</span></Kpi>
+        <Kpi label="Заявок поставщикам" value={num(k.rfq_sent_30)}><span>ответили {k.rfq_answers_30}</span></Kpi>
+      </div>
+      <section className="card" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+        <div className="between" style={{ paddingBottom: 6 }}><h2 className="h2">Последние поиски</h2><button type="button" className="btn ghost sm" onClick={() => nav("admin/src/clients")}>Все закупщики</button></div>
+        {!data.recent.length && <Empty icon="search" title="Поисков пока не было" />}
+        {data.recent.map((r) => (
+          <button key={r.id} type="button" className="list-row" onClick={() => open(r)} style={{ background: "transparent", border: 0, borderTop: "1px solid var(--line3)", color: "var(--text)", textAlign: "left", cursor: "pointer", width: "100%", fontSize: 14 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title || r.query}</div>
+              <div className="hint">{r.client} · {whenShort(r.created_at)}{r.kind === "pack" ? " · упаковка" : ""}</div>
+            </div>
+            {r.status === "running" ? <span className="hint">ищу…</span> : r.status === "error" ? <Pill color="var(--bad)" bg="var(--bad-soft)">ошибка</Pill> : <b style={{ fontSize: 13 }}>{r.found}</b>}
+            <Icon name="right" size={16} style={{ color: "var(--faint)" }} />
+          </button>
+        ))}
+      </section>
+    </div>
+  );
+}
+
+function SubModal({ c, onClose, onSaved }) {
+  const { api, toast } = useApp();
+  const plus = (days) => { const base = c.paid_until && new Date(c.paid_until) > new Date() ? new Date(c.paid_until) : new Date(); base.setDate(base.getDate() + days); return base.toISOString().slice(0, 10); };
+  const [f, setF] = useState({ plan: c.plan === "Пробный" ? "Закупки" : (c.plan || "Закупки"), plan_price: c.plan_price || "", paid_until: c.paid_until ? String(c.paid_until).slice(0, 10) : plus(30), status: c.status || "active" });
+  const [busy, setBusy] = useState(false);
+  const save = async (upd) => {
+    setBusy(true);
+    try { await api.post(`/api/admin/client/${c.id}/update`, upd); toast("Сохранено"); onSaved(); onClose(); } catch (e) { toast(e.message, "bad"); setBusy(false); }
+  };
+  return (
+    <Modal title={`Подписка · ${c.name}`} onClose={onClose} footer={<>
+      <Btn kind="ghost" onClick={() => save({ plan: "Пробный", plan_price: 0 })}>Вернуть на пробный</Btn>
+      <Btn kind="primary" loading={busy} onClick={() => save(f)}>Сохранить</Btn>
+    </>}>
+      <div className="hint" style={{ lineHeight: 1.5 }}>С подпиской закупщик видит всех поставщиков, базу и шлёт заявки без ограничений пробного.</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(160px, 100%), 1fr))", gap: 12 }}>
+        <label className="lbl">Тариф<input className="inp" value={f.plan} onChange={(e) => setF({ ...f, plan: e.target.value })} maxLength={40} /></label>
+        <label className="lbl">Цена в месяц, ₽<input className="inp" inputMode="numeric" value={f.plan_price} onChange={(e) => setF({ ...f, plan_price: e.target.value })} /></label>
+        <label className="lbl">Оплачено до<input className="inp" type="date" value={f.paid_until} onChange={(e) => setF({ ...f, paid_until: e.target.value })} /></label>
+      </div>
+      <div className="wrapflex" style={{ gap: 8 }}>
+        {[["+1 месяц", 30], ["+3 месяца", 91], ["+1 год", 365]].map(([l, d]) => <button key={l} type="button" className="btn sm" onClick={() => setF({ ...f, paid_until: plus(d) })}>{l}</button>)}
+      </div>
+      <label className="row" style={{ fontSize: 14, cursor: "pointer", minHeight: 40 }}><input type="checkbox" checked={f.status === "paused"} onChange={(e) => setF({ ...f, status: e.target.checked ? "paused" : "active" })} style={{ width: 18, height: 18, accentColor: "var(--accent)" }} />Приостановить доступ</label>
+    </Modal>
+  );
+}
+
+function AdminSrcClients() {
+  const { api, nav, toast } = useApp();
+  const { data, error, loading, reload } = useLoad(() => api.get("/api/admin/src/clients"), [], 5000);
+  const [flt, setFlt] = useState("all");
+  const [q, setQ] = useState("");
+  const [sub, setSub] = useState(null);
+  const [del, setDel] = useState(null);
+  if (loading && !data) return <PageSkeleton />;
+  if (error && !data) return <div className="wrap"><ErrorBox error={error} onRetry={reload} /></div>;
+  const all = data.items || [];
+  const isPaid = (c) => !c.trial && !c.expired && c.status !== "paused";
+  const list = all.filter((c) => (flt === "all" || (flt === "trial" ? c.trial : flt === "paid" ? isPaid(c) : (c.expired || c.status === "paused")))
+    && (!q.trim() || `${c.name} ${c.phone} ${c.city}`.toLowerCase().includes(q.trim().toLowerCase())));
+  const subPill = (c) => c.status === "paused" ? <Pill>пауза</Pill>
+    : c.trial ? <Pill color="var(--accent-text)" bg="var(--accent-soft)">пробный</Pill>
+      : c.expired ? <Pill color="var(--bad)" bg="var(--bad-soft)">просрочено</Pill>
+        : <Pill color="var(--ok)" bg="var(--ok-soft)">{c.plan}{c.paid_until ? ` · до ${dateLabel(c.paid_until)}` : ""}</Pill>;
+  return (
+    <div className="wrap">
+      <PageHead title="Закупщики" sub={`${all.length} ${plural(all.length, "кабинет", "кабинета", "кабинетов")} · подписка, поиски, заявки`} />
+      <div className="wrapflex" style={{ gap: 8 }}>
+        <Seg value={flt} onChange={setFlt} label="Фильтр" options={[["all", `Все ${all.length}`], ["trial", `Пробные ${all.filter((c) => c.trial).length}`], ["paid", `Платные ${all.filter(isPaid).length}`], ["off", "Просрочено"]]} />
+        <input className="inp" style={{ flex: "1 1 200px", maxWidth: 360 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Название, телефон, город" aria-label="Поиск закупщика" />
+      </div>
+      {!list.length && <div className="card"><Empty icon="users" title={all.length ? "Никого не нашлось" : "Закупщиков пока нет"} text={all.length ? "" : "Ссылка для регистрации: bot-panel-zeta.vercel.app/#/start?p=src"} /></div>}
+      {list.map((c) => (
+        <article key={c.id} className="card tight" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+            <b style={{ flex: "1 1 180px", fontSize: 15 }}>{c.name}</b>
+            {subPill(c)}
+          </div>
+          <div className="row hint" style={{ flexWrap: "wrap", gap: "4px 12px", fontSize: 13 }}>
+            {c.phone && <a href={`tel:+${c.phone}`}>+{c.phone}</a>}
+            {c.tg && <a href={`https://t.me/${c.tg}`} target="_blank" rel="noreferrer">@{c.tg}</a>}
+            {c.city && c.city !== "—" && <span>{c.city}</span>}
+            <span>с {dateLabel(c.created_at || "")}</span>
+            {c.tg_linked && <span>Telegram подключён</span>}
+          </div>
+          <div className="row" style={{ flexWrap: "wrap", gap: "4px 16px", fontSize: 13.5 }}>
+            <span><span className="hint">Поисков: </span><b>{c.searches}</b>{c.searches_30 !== c.searches ? <span className="hint"> · за 30 дней {c.searches_30}</span> : null}</span>
+            <span><span className="hint">Заявок КП: </span><b>{c.rfqs}</b></span>
+            <span><span className="hint">Последний поиск: </span><b>{c.last_search ? whenShort(c.last_search) : "—"}</b></span>
+          </div>
+          <div className="wrapflex" style={{ gap: 8 }}>
+            <Btn size="sm" icon="eye" onClick={() => nav(`c/${c.id}/search`)}>Кабинет</Btn>
+            <Btn size="sm" kind="soft" icon="ruble" onClick={() => setSub(c)}>Подписка</Btn>
+            <Btn size="sm" kind="ghost" icon="trash" onClick={() => setDel(c)}>Удалить</Btn>
+          </div>
+        </article>
+      ))}
+      {sub && <SubModal c={sub} onClose={() => setSub(null)} onSaved={reload} />}
+      {del && <Confirm title="Удалить закупщика?" danger ok="Удалить" text={`«${del.name}»: кабинет, поиски и заявки будут удалены, войти он больше не сможет.`}
+        onOk={async () => { try { await api.post("/api/delete-client", { client_id: del.id }); toast("Удалено"); reload(); } catch (e) { toast(e.message, "bad"); throw e; } }} onClose={() => setDel(null)} />}
+    </div>
+  );
+}
+
+function AdminSrcSettings() {
+  const { api, toast } = useApp();
+  const { data, error, loading, reload } = useLoad(() => api.get("/api/admin/src/settings"), [], false);
+  const [f, setF] = useState(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { if (data && !f) setF(data.settings); }, [data]); // eslint-disable-line
+  if (loading && !data) return <PageSkeleton />;
+  if (error && !data) return <div className="wrap"><ErrorBox error={error} onRetry={reload} /></div>;
+  const fields = [["free_searches", "Бесплатных поисков на пробном", "всего, на весь пробный период"],
+    ["free_visible", "Открытых поставщиков на пробном", "остальные — под замком «по подписке»"],
+    ["free_per_ip_day", "Бесплатных поисков с одного устройства в сутки", "на все аккаунты с этого интернет-адреса — против «много аккаунтов»"],
+    ["free_rfq", "Заявок КП на пробном", "сколько открытых поставщиков можно выбрать в одну заявку"],
+    ["paid_per_day", "Поисков в день по подписке", "≈1,5 ₽ за поиск на Яндекс"]];
+  return (
+    <div className="wrap">
+      <PageHead title="Настройки закупок" sub="Пробный доступ, лимиты и подключения" />
+      {f && (
+        <section className="card" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <h2 className="h2">Пробный доступ и лимиты</h2>
+          {fields.map(([k, l, h]) => (
+            <label key={k} className="row" style={{ gap: 12, alignItems: "flex-start", flexWrap: "wrap" }}>
+              <span style={{ flex: "1 1 240px", display: "flex", flexDirection: "column", gap: 2 }}><b style={{ fontSize: 14 }}>{l}</b><span className="hint">{h}</span></span>
+              <input className="inp" inputMode="numeric" style={{ width: 110 }} value={f[k]} onChange={(e) => setF({ ...f, [k]: e.target.value.replace(/\D/g, "") })} aria-label={l} />
+            </label>
+          ))}
+          <Btn kind="primary" loading={busy} style={{ alignSelf: "flex-start" }} onClick={async () => {
+            setBusy(true);
+            try { const r = await api.post("/api/admin/src/settings", f); setF(r.settings); toast("Сохранено — действует сразу"); } catch (e) { toast(e.message, "bad"); }
+            setBusy(false);
+          }}>Сохранить</Btn>
+        </section>
+      )}
+      <AdminSrcSetup />
+    </div>
+  );
+}
+
+function AdminFind({ sub, sid }) {
+  const { api, nav } = useApp();
+  const { data, error, loading, reload } = useLoad(() => api.post("/api/admin/src/own"), [], false);
+  if (loading && !data) return <PageSkeleton />;
+  if (error && !data) return <div className="wrap"><ErrorBox error={error} onRetry={reload} /></div>;
+  const cid = data.cid;
+  const base = "admin/find";
+  const tab = sub === "result" ? "search" : (sub || "search");
+  const tabs = [["search", "Сырьё"], ["pack", "Упаковка"], ["rfq", "Заявки"], ["suppliers", "Поставщики"]];
+  let body;
+  if (sub === "result") body = <SrcResult cid={cid} sid={sid} base={base} />;
+  else if (sub === "pack") body = <SrcSearch cid={cid} kind="pack" base={base} />;
+  else if (sub === "rfq") body = <SrcRfqs cid={cid} base={base} />;
+  else if (sub === "suppliers") body = <SrcSuppliers cid={cid} />;
+  else body = <SrcSearch cid={cid} kind="raw" base={base} />;
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div className="tabs" role="tablist" aria-label="Мой поиск">
+        {tabs.map(([k, l]) => <button key={k} type="button" role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => nav(k === "search" ? base : `${base}/${k}`)}>{l}</button>)}
+      </div>
+      {body}
+    </div>
   );
 }
