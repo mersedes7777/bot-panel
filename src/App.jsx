@@ -228,6 +228,8 @@ const ICONS = {
   server: "R4 4 16 7 2|R4 13 16 7 2|M8 7.5h.01M8 16.5h.01",
   sparkle: "M12 4v4M12 16v4M4 12h4M16 12h4M6.5 6.5l2.5 2.5M15 15l2.5 2.5M6.5 17.5 9 15M15 9l2.5-2.5",
   eye: "M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12z|C12 12 3",
+  mail: "R3 5.5 18 13 2|m3.5 7 8.5 6.5 8.5-6.5",
+  flask: "M9 3.5h6M10 3.5V9l-5.2 9.2A1.6 1.6 0 0 0 6.2 20.5h11.6a1.6 1.6 0 0 0 1.4-2.3L14 9V3.5|M7.3 15h9.4",
 };
 
 function Icon({ name, size = 20, sw = 1.8, style }) {
@@ -674,7 +676,7 @@ function Login({ onDone }) {
         <label className="lbl">Пароль<input className="inp" type="password" autoComplete="current-password" value={pass} onChange={(e) => setPass(e.target.value)} /></label>
         {err && <div role="alert" className="banner" style={{ background: "var(--bad-soft)", color: "var(--bad)", fontSize: 13.5, fontWeight: 700, padding: "10px 12px" }}>{err}</div>}
         <Btn kind="primary" block loading={busy} type="submit">Войти</Btn>
-        <div className="hint" style={{ lineHeight: 1.55 }}>Нет кабинета? <a href="#/start" style={{ color: "var(--accent-text)", fontWeight: 800 }}>Подключить магазин бесплатно</a> — 7 дней без оплаты.</div>
+        <div className="hint" style={{ lineHeight: 1.55 }}>Нет кабинета? <a href="#/start" style={{ color: "var(--accent-text)", fontWeight: 800 }}>Зарегистрироваться бесплатно</a> — ИИ-продавец для магазина или поиск сырья и поставщиков, 7 дней без оплаты.</div>
       </form>
     </div>
   );
@@ -698,6 +700,8 @@ function Signup({ onDone }) {
   const [cfg, setCfg] = useState(null);
   const [loadErr, setLoadErr] = useState("");
   const [step, setStep] = useState(1);
+  const [product, setProduct] = useState(() => { const p = hashQuery().p; return p === "src" ? "sourcing" : p === "shop" ? "shop" : null; });
+  const src = product === "sourcing";
   const [f, setF] = useState({ name: "", niche: "", city: "", phone: "", tg: "", password: "" });
   const [show, setShow] = useState(false);
   const [vals, setVals] = useState({});
@@ -710,10 +714,11 @@ function Signup({ onDone }) {
   useEffect(() => {
     fetch(API + "/api/signup/config").then((r) => r.json()).then(setCfg).catch(() => setLoadErr("Сервер недоступен. Проверьте интернет и обновите страницу."));
   }, []);
+  useEffect(() => { if (cfg && !product && (cfg.products || []).length < 2) setProduct("shop"); }, [cfg]); // eslint-disable-line
   const ch = cfg && cfg.channels[0];
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const digits = phoneDigits(f.phone);
-  const step1Err = f.name.trim().length < 2 ? "Напишите название магазина" : !f.niche ? "Выберите, что продаёте"
+  const step1Err = f.name.trim().length < 2 ? (src ? "Напишите название компании" : "Напишите название магазина") : (!f.niche && !src) ? "Выберите, что продаёте"
     : digits.length < 10 ? "Напишите телефон — по нему вы будете входить" : f.password.length < 6 ? "Пароль — не короче 6 символов" : "";
   const runCheck = (data) => {
     const my = ++seq.current;
@@ -740,7 +745,7 @@ function Signup({ onDone }) {
     setBusy(true); setErr("");
     try {
       const r = await fetch(API + "/api/signup", { method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...f, phone: digits, channels: [{ type: ch.type, data: vals }] }) });
+        body: JSON.stringify(src ? { ...f, niche: "", phone: digits, product: "sourcing" } : { ...f, phone: digits, channels: [{ type: ch.type, data: vals }] }) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) { setErr(d.detail || "Не получилось подключить. Попробуйте ещё раз."); setBusy(false); return; }
       const tok = `${d.login}:${f.password}`;
@@ -756,8 +761,8 @@ function Signup({ onDone }) {
       <div style={{ width: "100%", maxWidth: 520, display: "flex", flexDirection: "column", gap: 16 }}>
         <div className="row" style={{ gap: 12 }}>
           <span className="brand-logo"><Icon name="chat" size={19} sw={2} /></span>
-          <div style={{ flex: 1 }}><div style={{ fontWeight: 800, fontSize: 19, letterSpacing: -.3 }}>ChatAIbot</div><div className="hint">ИИ-продавец для вашего магазина</div></div>
-          {step < 3 && <span className="hint" style={{ fontWeight: 700 }}>Шаг {step} из 2</span>}
+          <div style={{ flex: 1 }}><div style={{ fontWeight: 800, fontSize: 19, letterSpacing: -.3 }}>ChatAIbot</div><div className="hint">{src ? "Поиск сырья и поставщиков" : product ? "ИИ-продавец для вашего магазина" : "ИИ-помощники для бизнеса"}</div></div>
+          {product === "shop" && step < 3 && <span className="hint" style={{ fontWeight: 700 }}>Шаг {step} из 2</span>}
         </div>
         {children}
       </div>
@@ -765,18 +770,34 @@ function Signup({ onDone }) {
   );
   if (loadErr) return shell(<ErrorBox error={loadErr} onRetry={() => window.location.reload()} />);
   if (!cfg) return shell(<Skeleton h={420} />);
+  if (!product) return shell(
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <h1 className="h2" style={{ fontSize: 22, margin: "4px 0 2px" }}>Что вам нужно?</h1>
+      {(cfg.products || [{ key: "shop", emoji: "🤖", title: "ИИ-продавец для магазина", text: "" }]).map((p) => (
+        <button key={p.key} type="button" className="card" onClick={() => { setProduct(p.key); setErr(""); }} style={{ display: "flex", gap: 14, alignItems: "flex-start", textAlign: "left", cursor: "pointer", color: "var(--text)", padding: 20 }}>
+          <span style={{ width: 52, height: 52, borderRadius: 14, background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26, flexShrink: 0 }} aria-hidden="true">{p.emoji}</span>
+          <span style={{ flex: 1, display: "flex", flexDirection: "column", gap: 4 }}>
+            <span style={{ fontWeight: 800, fontSize: 16.5 }}>{p.title}</span>
+            <span className="hint" style={{ fontSize: 13.5 }}>{p.text}</span>
+          </span>
+          <Icon name="right" size={18} style={{ color: "var(--faint)", marginTop: 16 }} />
+        </button>
+      ))}
+      <div className="hint" style={{ textAlign: "center" }}>{cfg.trial_days} дней бесплатно, без карты · Уже есть кабинет? <a href="#/" style={{ color: "var(--accent-text)", fontWeight: 800 }}>Войти</a></div>
+    </div>
+  );
   if (step === 1) return shell(
-    <form className="card" style={{ display: "flex", flexDirection: "column", gap: 16 }} onSubmit={(e) => { e.preventDefault(); if (step1Err) setErr(step1Err); else { setErr(""); setStep(2); window.scrollTo(0, 0); } }}>
+    <form className="card" style={{ display: "flex", flexDirection: "column", gap: 16 }} onSubmit={(e) => { e.preventDefault(); if (step1Err) setErr(step1Err); else if (src) submit(); else { setErr(""); setStep(2); window.scrollTo(0, 0); } }}>
       <div>
-        <h1 className="h2" style={{ fontSize: 22 }}>Подключите бота за 10 минут</h1>
-        <div className="sub" style={{ marginTop: 6, lineHeight: 1.5 }}>Бот будет отвечать покупателям, показывать товары с фото и принимать заказы — днём и ночью. {cfg.trial_days} дней бесплатно, без карты.</div>
+        <h1 className="h2" style={{ fontSize: 22 }}>{src ? "Поиск сырья и поставщиков" : "Подключите бота за 10 минут"}</h1>
+        <div className="sub" style={{ marginTop: 6, lineHeight: 1.5 }}>{src ? "Сырьё, упаковка и аналоги: цены, контакты поставщиков, проверка компаний и заявки на КП в одном месте." : "Бот будет отвечать покупателям, показывать товары с фото и принимать заказы — днём и ночью."} {cfg.trial_days} дней бесплатно, без карты.</div>
       </div>
-      <label className="lbl">Название магазина<input className="inp" value={f.name} onChange={set("name")} placeholder="Например, Цветы у дома" maxLength={80} /></label>
-      <div className="lbl" role="group" aria-label="Что продаёте">Что продаёте
+      <label className="lbl">{src ? "Название компании" : "Название магазина"}<input className="inp" value={f.name} onChange={set("name")} placeholder={src ? "Например, НутриЛаб" : "Например, Цветы у дома"} maxLength={80} /></label>
+      {!src && <div className="lbl" role="group" aria-label="Что продаёте">Что продаёте
         <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
           {cfg.niches.map((n) => <Chip key={n.key} on={f.niche === n.key} onClick={() => setF({ ...f, niche: n.key })}>{n.emoji} {n.title}</Chip>)}
         </div>
-      </div>
+      </div>}
       <label className="lbl"><span>Город <span className="hint" style={{ fontWeight: 600 }}>· необязательно</span></span><input className="inp" value={f.city} onChange={set("city")} placeholder="Оренбург" maxLength={60} /></label>
       <label className="lbl">Телефон<input className="inp" type="tel" inputMode="tel" autoComplete="tel" value={f.phone} onChange={set("phone")} placeholder="+7 900 123-45-67" /></label>
       <span className="hint" style={{ marginTop: -10 }}>По нему вы будете входить в кабинет.</span>
@@ -788,8 +809,9 @@ function Signup({ onDone }) {
         </span>
       </label>
       {err && <div role="alert" className="banner" style={{ background: "var(--bad-soft)", color: "var(--bad)", fontSize: 13.5, fontWeight: 700, padding: "10px 12px" }}>{err}</div>}
-      <Btn kind="primary" block type="submit">Дальше</Btn>
-      <div className="hint" style={{ textAlign: "center" }}>Уже есть кабинет? <a href="#/" style={{ color: "var(--accent-text)", fontWeight: 800 }}>Войти</a></div>
+      <Btn kind="primary" block type="submit" loading={busy}>{src ? "Создать кабинет" : "Дальше"}</Btn>
+      {src && <div className="hint" style={{ lineHeight: 1.5 }}>Нажимая «Создать кабинет», вы соглашаетесь на обработку указанных данных для работы сервиса.</div>}
+      <div className="hint" style={{ textAlign: "center" }}><button type="button" className="btn ghost sm" style={{ minHeight: 28, padding: 0, color: "var(--accent-text)" }} onClick={() => { setProduct(null); setErr(""); }}>← Другое направление</button> · Уже есть кабинет? <a href="#/" style={{ color: "var(--accent-text)", fontWeight: 800 }}>Войти</a></div>
     </form>
   );
   if (step === 2) return shell(
@@ -834,6 +856,23 @@ function Signup({ onDone }) {
       <div className="hint" style={{ lineHeight: 1.5 }}>Нажимая «Подключить», вы соглашаетесь на обработку указанных данных для работы сервиса.</div>
     </div>
   );
+  if (done.product === "sourcing") return shell(
+    <div className="card" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <span style={{ width: 48, height: 48, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ok-soft)", color: "var(--ok)" }}><Icon name="check" size={26} sw={2.6} /></span>
+      <div>
+        <h1 className="h2" style={{ fontSize: 22 }}>Готово! Кабинет создан</h1>
+        <div className="sub" style={{ marginTop: 6, lineHeight: 1.5 }}>{done.trial_days} дней бесплатно — до {dLong(done.trial_until)}. До {done.limit} поисков в день.</div>
+      </div>
+      <ol style={{ margin: 0, paddingLeft: 20, display: "flex", flexDirection: "column", gap: 8, fontSize: 14.5, lineHeight: 1.5 }}>
+        <li>Напишите, что ищете — например, «магния бисглицинат 100 кг».</li>
+        <li>Через 1–2 минуты получите поставщиков: цены, фасовку, наличие, контакты и проверку компании.</li>
+        <li>Отметьте подходящих и отправьте всем один запрос КП — ответы соберутся в кабинете.</li>
+      </ol>
+      <Btn kind="primary" block icon="search" onClick={() => onDone(done.tok)}>Начать поиск</Btn>
+      {done.tg_link && <a className="btn block" href={done.tg_link} target="_blank" rel="noreferrer"><Icon name="plane" size={18} sw={2} />Искать и из Telegram</a>}
+      <div className="hint" style={{ lineHeight: 1.5 }}>Вход в кабинет: телефон {fmtPhone(done.login)} и ваш пароль.</div>
+    </div>
+  );
   return shell(
     <div className="card" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
       <span style={{ width: 48, height: 48, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ok-soft)", color: "var(--ok)" }}><Icon name="check" size={26} sw={2.6} /></span>
@@ -868,11 +907,11 @@ function TrialBanner({ trial, cid }) {
   }
   const text = left > 1 ? `Пробный период: осталось ${left} ${plural(left, "день", "дня", "дней")} — до ${trial.until_text}.`
     : left === 1 ? `Пробный период заканчивается завтра, ${trial.until_text}.`
-      : left === 0 ? "Пробный период заканчивается сегодня." : "Пробный период закончился — бот пока работает.";
+      : left === 0 ? "Пробный период заканчивается сегодня." : trial.product === "sourcing" ? "Пробный период закончился." : "Пробный период закончился — бот пока работает.";
   return (
     <div className="banner" style={{ background: left < 0 ? "var(--warn-soft)" : "var(--accent-soft)", border: `1px solid ${left < 0 ? "rgba(245,181,68,.35)" : "rgba(47,99,230,.3)"}`, fontSize: 13.5, padding: "10px 14px", marginBottom: 16 }}>
       <Icon name="clock" size={18} style={{ color: left < 0 ? "var(--warn)" : "var(--accent-text)" }} />
-      <span style={{ flex: "1 1 200px", lineHeight: 1.45 }}>{text} Чтобы продолжить пользоваться ботом, напишите нам.</span>
+      <span style={{ flex: "1 1 200px", lineHeight: 1.45 }}>{text} Чтобы продолжить пользоваться {trial.product === "sourcing" ? "поиском" : "ботом"}, напишите нам.</span>
       {trial.sales && <a className="btn sm soft" href={trial.sales} target="_blank" rel="noreferrer">Написать</a>}
     </div>
   );
@@ -913,6 +952,27 @@ function Sidebar({ scope, page, cid, badges, onLogout }) {
   }
   const name = badges?.name || me?.client?.name || "Кабинет";
   const paused = badges?.status === "paused";
+  if (isSrcCab(me, badges, isAdmin)) {
+    return (
+      <nav className="side" aria-label="Разделы кабинета">
+        <div className="brand"><span className="tile">{initials(name)}</span><div style={{ minWidth: 0 }}><div style={{ fontWeight: 800, fontSize: 15, lineHeight: 1.25 }}>{name}</div><div className="hint" style={{ fontSize: 12 }}>закупки · ChatAIbot</div></div></div>
+        <NavItem icon="flask" label="Сырьё" on={page === "search" || page === "result"} onClick={() => nav(`c/${cid}/search`)} />
+        <NavItem icon="box" label="Упаковка" on={page === "pack"} onClick={() => nav(`c/${cid}/pack`)} />
+        <NavItem icon="mail" label="Заявки на КП" on={page === "rfq"} onClick={() => nav(`c/${cid}/rfq`)} />
+        <NavItem icon="users" label="Поставщики" on={page === "suppliers"} onClick={() => nav(`c/${cid}/suppliers`)} />
+        <div style={{ flex: 1 }} />
+        <div className="row" style={{ padding: "12px 10px 0" }}>
+          {isAdmin ? (
+            <button type="button" className="btn sm block" onClick={() => nav(`admin/bot/${cid}`)}><Icon name="left" size={16} />В админку</button>
+          ) : (<>
+            <span className="tile" style={{ width: 32, height: 32, borderRadius: 16, fontSize: 12 }}>{initials(me?.login)}</span>
+            <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis" }}>{me?.login}</div><div className="hint" style={{ fontSize: 12 }}>закупщик</div></div>
+            <button type="button" className="btn ghost sm" onClick={onLogout} aria-label="Выйти"><Icon name="logout" size={18} /></button>
+          </>)}
+        </div>
+      </nav>
+    );
+  }
   return (
     <nav className="side" aria-label="Разделы кабинета">
       <div className="brand"><span className="tile">{initials(name)}</span><div style={{ minWidth: 0 }}><div style={{ fontWeight: 800, fontSize: 15, lineHeight: 1.25 }}>{name}</div><div className="hint" style={{ fontSize: 12 }}>кабинет · ChatAIbot</div></div></div>
@@ -942,9 +1002,11 @@ function Sidebar({ scope, page, cid, badges, onLogout }) {
 }
 
 function MobileBars({ scope, page, cid, badges, onLogout }) {
-  const { nav, isAdmin } = useApp();
+  const { nav, isAdmin, me } = useApp();
   const [more, setMore] = useState(false);
-  const tabs = scope === "admin"
+  const srcCab = scope === "cab" && isSrcCab(me, badges, isAdmin);
+  const tabs = srcCab ? [["flask", "Сырьё", "search", `c/${cid}/search`], ["box", "Упаковка", "pack", `c/${cid}/pack`], ["mail", "Заявки", "rfq", `c/${cid}/rfq`]]
+    : scope === "admin"
     ? [["grid", "Обзор", "overview", "admin"], ["users", "Клиенты", "clients", "admin/clients"], ["pulse", "Система", "system", "admin/system", badges?.warnings, "warn"]]
     : [["home", "Сегодня", "today", `c/${cid}/today`], ["bag", "Заказы", "orders", `c/${cid}/orders`, badges?.new_orders], ["chat", "Диалоги", "dialogs", `c/${cid}/dialogs`, badges?.waiting, "warn"]];
   const name = scope === "admin" ? "ChatAIbot" : (badges?.name || "Кабинет");
@@ -956,6 +1018,7 @@ function MobileBars({ scope, page, cid, badges, onLogout }) {
         <div style={{ fontSize: 15, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{name}</div>
         {scope === "admin"
           ? <div className="hint" style={{ fontSize: 12 }}>админка</div>
+          : srcCab ? <div className="hint" style={{ fontSize: 12 }}>закупки · поиск поставщиков</div>
           : <div className="row" style={{ gap: 6, fontSize: 12, color: "var(--dim)" }}><span className="dot" style={{ width: 7, height: 7, background: paused ? "var(--bad)" : "var(--ok)" }} />{paused ? "Бот на паузе" : `Бот на связи · «${MODE[badges?.mode || "auto"].label}»`}</div>}
       </div>
       {scope === "cab" && isAdmin && <button type="button" className="btn sm" onClick={() => nav(`admin/bot/${cid}`)}><Icon name="left" size={16} />Админка</button>}
@@ -963,17 +1026,18 @@ function MobileBars({ scope, page, cid, badges, onLogout }) {
     </div>
     <nav className="mtabs" aria-label="Разделы">
       {tabs.map(([ic, l, pg, path, b, bk]) => (
-        <button key={pg} type="button" className={page === pg || (pg === "clients" && page === "bot") ? "on" : ""} aria-current={page === pg ? "page" : undefined} onClick={() => nav(path)}>
+        <button key={pg} type="button" className={page === pg || (pg === "clients" && page === "bot") || (srcCab && pg === "search" && page === "result") ? "on" : ""} aria-current={page === pg ? "page" : undefined} onClick={() => nav(path)}>
           <Icon name={ic} size={22} />{l}
           {b > 0 && <span className="mb" style={bk === "warn" ? { background: "var(--warn)", color: "#1A1305" } : { background: "var(--accent)", color: "#fff" }}>{b}</span>}
         </button>
       ))}
-      <button type="button" className={["analytics", "catalog", "settings"].includes(page) ? "on" : ""} onClick={() => setMore(true)}><Icon name="menu" size={22} />Ещё</button>
+      <button type="button" className={["analytics", "catalog", "settings", "suppliers"].includes(page) ? "on" : ""} onClick={() => setMore(true)}><Icon name="menu" size={22} />Ещё</button>
     </nav>
     {more && (
       <Modal title="Ещё" sheet onClose={() => setMore(false)}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {scope === "cab" && <>
+          {srcCab && <NavItem icon="users" label="Поставщики" on={page === "suppliers"} onClick={() => { setMore(false); nav(`c/${cid}/suppliers`); }} />}
+          {scope === "cab" && !srcCab && <>
             <NavItem icon="chart" label="Аналитика" on={page === "analytics"} onClick={() => { setMore(false); nav(`c/${cid}/analytics`); }} />
             <NavItem icon="box" label="Каталог" on={page === "catalog"} onClick={() => { setMore(false); nav(`c/${cid}/catalog`); }} />
             <NavItem icon="sliders" label="Настройки бота" on={page === "settings"} onClick={() => { setMore(false); nav(`c/${cid}/settings`); }} />
@@ -1024,9 +1088,11 @@ export default function App() {
     if (!isAdmin) { scope = "cab"; cid = me.client_id; }
     else if (route[0] === "c" && route[1]) { scope = "cab"; cid = route[1]; }
   }
-  const page = scope === "admin"
+  const srcCab = scope === "cab" && isSrcCab(me, badges, isAdmin);
+  let page = scope === "admin"
     ? (route[0] === "admin" ? (route[1] || "overview") : "overview")
-    : ((route[0] === "c" ? route[2] : null) || "today");
+    : ((route[0] === "c" ? route[2] : null) || (srcCab ? "search" : "today"));
+  if (srcCab && !SRC_PAGES.includes(page)) page = "search";
 
   // «Пульс»: раз в 15 секунд спрашиваем, поменялось ли что-то (без нагрузки на базу).
   // В открытых диалогах — каждые 5 секунд, чтобы переписка шла почти вживую.
@@ -1061,6 +1127,7 @@ export default function App() {
   useEffect(() => { setBadges(null); loadBadges(); }, [scope, cid]); // eslint-disable-line
   useEffect(() => { if (pulse) loadBadges(); }, [pulse]); // eslint-disable-line
 
+  if (route[0] === "offer" && route[1]) return (<><style>{CSS}</style><OfferPage token={route[1]} /></>);
   if (!token || (!me && !checking)) {
     if (route[0] === "start") {
       return (<><style>{CSS}</style><Signup onDone={(tok) => { try { localStorage.setItem("adminPwd", tok); } catch (e) { /* */ } window.location.hash = ""; setToken(tok); }} /></>);
@@ -1075,6 +1142,12 @@ export default function App() {
     else if (page === "bot") body = <AdminBot cid={route[2]} tab={route[3] || "bot"} />;
     else if (page === "system") body = <AdminSystem />;
     else body = <AdminOverview />;
+  } else if (srcCab || SRC_PAGES.includes(page)) {
+    if (page === "pack") body = <SrcSearch cid={cid} kind="pack" />;
+    else if (page === "result") body = <SrcResult cid={cid} sid={route[3]} />;
+    else if (page === "rfq") body = <SrcRfqs cid={cid} />;
+    else if (page === "suppliers") body = <SrcSuppliers cid={cid} />;
+    else body = <SrcSearch cid={cid} kind="raw" />;
   } else {
     if (page === "orders") body = <CabOrders cid={cid} />;
     else if (page === "dialogs") body = <CabDialogs cid={cid} lid={route[3]} />;
@@ -1330,6 +1403,7 @@ const CLIENT_STATE = {
   paused: { label: "Пауза", color: "var(--faint)", dot: "#5C6270" },
   off: { label: "Не подключён", color: "var(--faint)", dot: "#5C6270" },
   error: { label: "Нет сообщений", color: "var(--bad)", dot: "var(--bad)" },
+  sourcing: { label: "Закупки", color: "var(--sky)", dot: "var(--sky)" },
 };
 
 function modePill(mode) {
@@ -1871,6 +1945,7 @@ function AdminSystem() {
           </section>
         ))}
       </div>
+      <AdminSrcSetup />
       <div className="cols">
         <section className="card col" style={{ flex: "3 1 520px", gap: 2 }}>
           <div className="between" style={{ paddingBottom: 8 }}><h2 className="h2">Журнал событий</h2><span className="hint">обновления, копии, сбои</span></div>
@@ -3464,5 +3539,587 @@ function CabSettings({ cid }) {
       )}
       {pause && <Confirm title="Поставить бота на паузу?" text="Бот перестанет отвечать. Покупатели получат «Сейчас не можем ответить — напишем вам чуть позже». Их сообщения будут видны в «Диалогах»." ok="Поставить на паузу" danger onOk={() => setStatus("paused")} onClose={() => setPause(false)} />}
     </div>
+  );
+}
+
+
+// ════════════════ ЗАКУПКИ: поиск сырья, упаковки и поставщиков ════════════════
+const SRC_PAGES = ["search", "pack", "result", "rfq", "suppliers"];
+const SRC_REL = {
+  same: { label: "Исходный", color: "var(--ok)", bg: "var(--ok-soft)" },
+  similar: { label: "Не прямой аналог", color: "var(--warn)", bg: "var(--warn-soft)" },
+  other: { label: "Другое вещество", color: "var(--dim)", bg: "#1B2029" },
+};
+const SRC_KIND = { manufacturer: "Производитель", distributor: "Дистрибьютор", marketplace: "Каталог / площадка", unknown: "" };
+const RFQ_ST = {
+  queued: { label: "В очереди", color: "var(--faint)" },
+  sent: { label: "Отправлено", color: "var(--dim)" },
+  failed: { label: "Не ушло", color: "var(--bad)" },
+  opened: { label: "Открыли", color: "var(--sky)" },
+  answered: { label: "Ответили", color: "var(--ok)" },
+  declined: { label: "Не поставляют", color: "var(--faint)" },
+};
+
+function isSrcCab(me, badges, isAdmin) {
+  return (isAdmin ? badges?.business_type : (me?.client?.business_type || badges?.business_type)) === "sourcing";
+}
+
+function useSrcConfig() {
+  const { api } = useApp();
+  return useLoad(() => api.get("/api/src/config"), [], false);
+}
+
+function srcPrice(o) {
+  if (o.price) return `${num(o.price)} ₽${o.price_unit ? ` / ${o.price_unit}` : ""}`;
+  return o.price_text || "";
+}
+
+function srcParamsLine(s, cfg) {
+  const p = s?.params || {};
+  const reg = (cfg?.regions || []).find((r) => r.key === p.region);
+  const gr = (cfg?.grades || []).find((g) => g.key === p.grade);
+  return [p.qty, reg?.title, gr && p.grade !== "any" ? gr.title : ""].filter(Boolean).join(" · ");
+}
+
+function EgrulPill({ eg }) {
+  if (!eg) return null;
+  if (!eg.status) return eg.link ? <a className="pill" href={eg.link} target="_blank" rel="noreferrer" style={{ background: "#1B2029", color: "var(--accent-text)" }}>ИНН {eg.inn} · проверить</a> : null;
+  const good = eg.status === "ACTIVE";
+  const text = good ? `Действует${eg.years ? ` · ${eg.years} ${plural(eg.years, "год", "года", "лет")}` : ""}` : eg.status_text;
+  return <a className="pill" href={eg.link} target="_blank" rel="noreferrer" title={eg.name || ""} style={{ background: good ? "var(--ok-soft)" : "var(--bad-soft)", color: good ? "var(--ok)" : "var(--bad)" }}><Icon name="shield" size={13} sw={2.2} />{text}</a>;
+}
+
+function SrcTgCard({ cid }) {
+  const { api, toast } = useApp();
+  const { data, reload } = useLoad(() => api.get(`/api/c/${cid}/src/tg`), [cid]);
+  const [busy, setBusy] = useState(false);
+  if (!data || !data.bot) return null;
+  const open = async () => {
+    setBusy(true);
+    try { const r = await api.post(`/api/c/${cid}/src/tg-link`); window.open(r.link, "_blank"); } catch (e) { toast(e.message, "bad"); }
+    setBusy(false);
+  };
+  if (data.linked) {
+    return (
+      <div className="row hint" style={{ fontSize: 13, flexWrap: "wrap" }}>
+        <Icon name="plane" size={16} style={{ color: "var(--ok)" }} />
+        <span style={{ flex: "1 1 200px" }}>Telegram подключён{data.username ? ` (@${data.username})` : ""} — можно искать, написав боту <a href={`https://t.me/${data.bot}`} target="_blank" rel="noreferrer">@{data.bot}</a>.</span>
+        <button type="button" className="btn ghost sm" onClick={async () => { await api.post(`/api/c/${cid}/src/tg-unlink`); reload(); }}>Отключить</button>
+      </div>
+    );
+  }
+  return (
+    <div className="row" style={{ flexWrap: "wrap", gap: 10, fontSize: 13.5 }}>
+      <Icon name="plane" size={18} style={{ color: "var(--accent-text)" }} />
+      <span style={{ flex: "1 1 220px", color: "var(--dim)", lineHeight: 1.45 }}>Ищите прямо из Telegram: пишете боту «стеарат магния 100 кг», он присылает поставщиков.</span>
+      <Btn size="sm" kind="soft" loading={busy} onClick={open}>Подключить Telegram</Btn>
+    </div>
+  );
+}
+
+function SrcHistory({ cid, kind }) {
+  const { api, nav } = useApp();
+  const { data } = useLoad(() => api.get(`/api/c/${cid}/src/searches?kind=${kind}`), [cid, kind], 3000);
+  if (!data || !data.items.length) return null;
+  return (
+    <section className="card" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <div className="between" style={{ paddingBottom: 6 }}><h2 className="h2">Недавние поиски</h2>{data.left !== null && data.left !== undefined && <span className="hint">сегодня осталось {data.left} из {data.limit}</span>}</div>
+      {data.items.slice(0, 12).map((s) => (
+        <button key={s.id} type="button" className="list-row" onClick={() => nav(`c/${cid}/result/${s.id}`)} style={{ background: "transparent", border: 0, borderTop: "1px solid var(--line3)", color: "var(--text)", textAlign: "left", cursor: "pointer", width: "100%", fontSize: 14 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title || s.query}</div>
+            <div className="hint">{whenShort(s.created_at)}{s.params?.qty ? ` · ${s.params.qty}` : ""}</div>
+          </div>
+          {s.status === "running" ? <span className="row hint" style={{ gap: 6 }}><span className="spin" style={{ width: 14, height: 14 }} />ищу</span>
+            : s.status === "error" ? <Pill color="var(--bad)" bg="var(--bad-soft)">ошибка</Pill>
+              : <span style={{ fontWeight: 800, fontSize: 13, color: s.found ? "var(--text)" : "var(--faint)" }}>{s.found} {plural(s.found, "поставщик", "поставщика", "поставщиков")}</span>}
+          <Icon name="right" size={16} style={{ color: "var(--faint)" }} />
+        </button>
+      ))}
+    </section>
+  );
+}
+
+function SrcSearch({ cid, kind }) {
+  const { api, nav, toast } = useApp();
+  const cfgL = useSrcConfig();
+  const cfg = cfgL.data;
+  const [q, setQ] = useState("");
+  const [qty, setQty] = useState("");
+  const [region, setRegion] = useState("msk");
+  const [grade, setGrade] = useState("any");
+  const [docs, setDocs] = useState([]);
+  const [cat, setCat] = useState("");
+  const [pack, setPack] = useState({});
+  const [ptype, setPtype] = useState("");
+  const [busy, setBusy] = useState(false);
+  useEffect(() => { setQ(""); setPack({}); setPtype(""); setCat(""); }, [kind]);
+  if (cfgL.loading && !cfg) return <PageSkeleton />;
+  if (cfgL.error && !cfg) return <div className="wrap"><ErrorBox error={cfgL.error} onRetry={cfgL.reload} /></div>;
+  const raw = kind === "raw";
+  const packQuery = Object.values(pack).filter(Boolean).join(" ").trim();
+  const canGo = raw ? q.trim().length >= 2 : (q.trim().length >= 2 || packQuery.length >= 2);
+  const go = async (query) => {
+    setBusy(true);
+    try {
+      const body = raw ? { kind, query: (query || q).trim(), qty, region, grade, docs } : { kind, query: q.trim(), region, pack, qty: pack.qty || "" };
+      const r = await api.post(`/api/c/${cid}/src/search`, body);
+      nav(`c/${cid}/result/${r.id}`);
+    } catch (e) { toast(e.message, "bad"); setBusy(false); }
+  };
+  const curCat = (cfg.categories || []).find((c) => c.key === cat);
+  return (
+    <div className="wrap">
+      <PageHead title={raw ? "Поиск сырья" : "Поиск упаковки"} sub={raw ? "Найдём поставщиков, цены и контакты, подскажем названия и аналоги — за 1–2 минуты" : "Банки, флаконы, крышки, мембраны, этикетки, саше, блистеры — по вашим параметрам"} />
+      {!cfg.search_ready && <div className="banner" style={{ background: "var(--warn-soft)", border: "1px solid rgba(245,181,68,.35)", fontSize: 13.5 }}><Icon name="clock" size={18} style={{ color: "var(--warn)" }} /><span style={{ flex: "1 1 220px" }}>Поиск в интернете подключается — скоро заработает.</span></div>}
+      <form className="card" style={{ display: "flex", flexDirection: "column", gap: 16 }} onSubmit={(e) => { e.preventDefault(); if (canGo) go(); }}>
+        {raw ? (<>
+          <label className="lbl">Что ищете
+            <span className="row" style={{ gap: 8 }}>
+              <input className="inp" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Например, магния бисглицинат" maxLength={200} style={{ flex: 1, minWidth: 0, fontSize: 15 }} />
+            </span>
+          </label>
+          <div className="lbl" role="group" aria-label="Категории">Или выберите из категорий
+            <div className="hscroll">{cfg.categories.map((c) => <Chip key={c.key} on={cat === c.key} onClick={() => setCat(cat === c.key ? "" : c.key)}>{c.emoji} {c.title}</Chip>)}</div>
+            {curCat && <div className="wrapflex" style={{ gap: 8 }}>{curCat.examples.map((x) => <button key={x} type="button" className="btn sm" onClick={() => setQ(x)}>{x}</button>)}</div>}
+          </div>
+          <div className="wrapflex" style={{ gap: 12 }}>
+            <label className="lbl" style={{ flex: "1 1 160px" }}>Сколько нужно<input className="inp" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="100 кг" maxLength={60} /></label>
+            <div className="lbl" style={{ flex: "2 1 260px" }}>Куда поставка<Seg value={region} onChange={setRegion} label="Регион" options={cfg.regions.map((r) => [r.key, r.title])} /></div>
+          </div>
+          <div className="lbl" role="group" aria-label="Класс">Класс сырья
+            <div className="wrapflex" style={{ gap: 8 }}>{cfg.grades.map((g) => <Chip key={g.key} on={grade === g.key} onClick={() => setGrade(g.key)}>{g.title}</Chip>)}</div>
+          </div>
+          <div className="lbl" role="group" aria-label="Документы"><span>Нужные документы <span className="hint" style={{ fontWeight: 600 }}>· необязательно</span></span>
+            <div className="wrapflex" style={{ gap: 8 }}>{cfg.docs.map((d) => <Chip key={d.key} on={docs.includes(d.key)} onClick={() => setDocs(docs.includes(d.key) ? docs.filter((x) => x !== d.key) : [...docs, d.key])}>{d.title}</Chip>)}</div>
+          </div>
+        </>) : (<>
+          <div className="lbl" role="group" aria-label="Тип упаковки">Что нужно
+            <div className="hscroll">{cfg.pack_types.map((t) => <Chip key={t.key} on={ptype === t.key} onClick={() => { setPtype(t.key); setPack({ ...t.example }); }}>{t.emoji} {t.title}</Chip>)}</div>
+            <span className="hint">Выберите тип — подставим пример параметров, поправьте под себя.</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))", gap: 12 }}>
+            {cfg.pack_fields.map((f) => <label key={f.key} className="lbl">{f.title}<input className="inp" value={pack[f.key] || ""} onChange={(e) => setPack({ ...pack, [f.key]: e.target.value })} maxLength={80} /></label>)}
+          </div>
+          <label className="lbl"><span>Своими словами <span className="hint" style={{ fontWeight: 600 }}>· если удобнее</span></span><input className="inp" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Банка HDPE 150 мл белая, широкое горло" maxLength={200} /></label>
+          <div className="lbl">Куда поставка<Seg value={region} onChange={setRegion} label="Регион" options={cfg.regions.map((r) => [r.key, r.title])} /></div>
+        </>)}
+        <Btn kind="primary" type="submit" icon="search" loading={busy} disabled={!canGo || !cfg.search_ready} style={{ minHeight: 48, fontSize: 15 }}>Найти поставщиков</Btn>
+        <SrcTgCard cid={cid} />
+      </form>
+      <SrcHistory cid={cid} kind={kind} />
+    </div>
+  );
+}
+
+function OfferCard({ o, picked, onPick }) {
+  const price = srcPrice(o);
+  const facts = [["Фасовка", o.packs], ["Мин. партия", o.min_order], ["Наличие", o.in_stock === true ? "в наличии" : o.in_stock === false ? "под заказ" : ""],
+    ["Город", o.city], ["Производство", o.origin], ["Класс", o.grade], ["Документы", (o.docs || []).join(", ")], ["Доставка", o.delivery]].filter(([, v]) => v);
+  const dead = o.egrul && ["LIQUIDATED", "LIQUIDATING", "BANKRUPT", "NOT_FOUND"].includes(o.egrul.status);
+  const canPick = (o.emails || []).length > 0;
+  return (
+    <article className="card tight" style={{ display: "flex", flexDirection: "column", gap: 10, borderColor: picked ? "var(--accent)" : undefined, opacity: dead ? 0.7 : 1 }}>
+      <div className="row" style={{ alignItems: "flex-start", gap: 12 }}>
+        {canPick ? <input type="checkbox" aria-label={`Выбрать ${o.company}`} checked={picked} onChange={onPick} style={{ width: 22, height: 22, marginTop: 2, accentColor: "var(--accent)", flexShrink: 0 }} />
+          : <span title="Нет почты на сайте" style={{ width: 22, flexShrink: 0 }} />}
+        <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+          <div style={{ fontWeight: 800, fontSize: 15, lineHeight: 1.3 }}>{o.company || o.domain}</div>
+          <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
+            <a href={o.url} target="_blank" rel="noreferrer" className="hint" style={{ color: "var(--accent-text)", fontWeight: 700 }}>{o.domain} ↗</a>
+            {SRC_KIND[o.kind] && <Pill>{SRC_KIND[o.kind]}</Pill>}
+            <EgrulPill eg={o.egrul} />
+          </div>
+        </div>
+        <div style={{ textAlign: "right", flexShrink: 0, maxWidth: "40%" }}>
+          <div style={{ fontWeight: 800, fontSize: price && o.price ? 18 : 13.5, color: price ? "var(--text)" : "var(--faint)", lineHeight: 1.25 }}>{price || "цена по запросу"}</div>
+        </div>
+      </div>
+      {o.product && <div className="hint" style={{ fontSize: 13 }}>{o.product}</div>}
+      {facts.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(170px, 100%), 1fr))", gap: "6px 14px", fontSize: 13 }}>
+          {facts.map(([l, v]) => <div key={l} style={{ minWidth: 0 }}><span className="hint">{l}: </span><span style={{ fontWeight: 600 }}>{v}</span></div>)}
+        </div>
+      )}
+      {((o.emails || []).length > 0 || (o.phones || []).length > 0) && (
+        <div className="wrapflex" style={{ gap: 8 }}>
+          {(o.emails || []).slice(0, 2).map((e) => <a key={e} className="btn sm" href={`mailto:${e}`}><Icon name="mail" size={15} />{e}</a>)}
+          {(o.phones || []).slice(0, 2).map((p) => <a key={p} className="btn sm" href={`tel:${p}`}><Icon name="phone" size={15} />{p}</a>)}
+        </div>
+      )}
+    </article>
+  );
+}
+
+function rfqDraft(s, cfg) {
+  const info = s.info || {};
+  const p = s.params || {};
+  const reg = (cfg?.regions || []).find((r) => r.key === p.region);
+  const gr = (cfg?.grades || []).find((g) => g.key === p.grade);
+  const docs = (p.docs || []).map((d) => (cfg?.docs || []).find((x) => x.key === d)?.title || d);
+  const what = info.title || s.query;
+  const rows = [`Нам требуется: ${what}${gr && p.grade !== "any" ? `, ${gr.title}` : ""}.`];
+  if (s.kind === "pack" && info.specs) rows.push(`Параметры: ${info.specs}.`);
+  if (p.qty) rows.push(`Количество: ${p.qty}.`);
+  if (docs.length) rows.push(`Документы: ${docs.join(", ")}.`);
+  if (reg && p.region !== "ru") rows.push(`Доставка: ${reg.title}.`);
+  rows.push("Просим прислать цену, минимальную партию, срок поставки и документы качества. Если есть образцы — напишите, пожалуйста.");
+  return { title: `${what}${p.qty ? `, ${p.qty}` : ""}`.slice(0, 150), body: rows.join("\n") };
+}
+
+function RfqModal({ cid, search, offers, onClose }) {
+  const { api, nav, toast } = useApp();
+  const prof = useLoad(() => api.get(`/api/c/${cid}/src/profile`), [cid], false);
+  const cfgL = useSrcConfig();
+  const [f, setF] = useState(null);
+  const [mails, setMails] = useState(() => Object.fromEntries(offers.map((o) => [o.domain, (o.emails || [])[0]])));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
+  useEffect(() => {
+    if (prof.data && cfgL.data && !f) setF({ ...rfqDraft(search, cfgL.data), name: prof.data.name, company: prof.data.company, email: prof.data.email, phone: prof.data.phone });
+  }, [prof.data, cfgL.data]); // eslint-disable-line
+  if (!f) return <Modal title="Запрос КП" onClose={onClose}><Skeleton h={300} /></Modal>;
+  const mailReady = prof.data?.mail_ready;
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const targets = offers.filter((o) => mails[o.domain]).map((o) => ({ domain: o.domain, email: mails[o.domain], supplier: o.company || o.domain }));
+  const send = async () => {
+    setBusy(true); setErr("");
+    try {
+      await api.post(`/api/c/${cid}/src/rfq`, { search_id: search.id, title: f.title, body: f.body, contact: { name: f.name, company: f.company, email: f.email, phone: f.phone }, targets });
+      toast(`Заявка отправлена: ${targets.length} ${plural(targets.length, "поставщику", "поставщикам", "поставщикам")}`);
+      onClose(); nav(`c/${cid}/rfq`);
+    } catch (e) { setErr(e.message); setBusy(false); }
+  };
+  const mailText = `${f.body}\n\n${[f.name, f.company, f.phone, f.email].filter(Boolean).join(", ")}`;
+  return (
+    <Modal title="Запрос коммерческого предложения" onClose={onClose} wide footer={mailReady ? <>
+      <Btn onClick={onClose}>Отмена</Btn>
+      <Btn kind="primary" icon="send" loading={busy} disabled={!targets.length} onClick={send}>Отправить {targets.length} {plural(targets.length, "поставщику", "поставщикам", "поставщикам")}</Btn>
+    </> : <Btn onClick={onClose}>Закрыть</Btn>}>
+      <label className="lbl">Тема<input className="inp" value={f.title} onChange={set("title")} maxLength={150} /></label>
+      <label className="lbl">Текст заявки<textarea className="inp" rows={6} value={f.body} onChange={set("body")} maxLength={3000} /></label>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))", gap: 12 }}>
+        <label className="lbl">Ваше имя<input className="inp" value={f.name} onChange={set("name")} maxLength={80} /></label>
+        <label className="lbl">Компания<input className="inp" value={f.company} onChange={set("company")} maxLength={120} /></label>
+        <label className="lbl">Почта для ответов<input className="inp" type="email" inputMode="email" value={f.email} onChange={set("email")} placeholder="zakupki@company.ru" maxLength={120} /></label>
+        <label className="lbl">Телефон<input className="inp" type="tel" value={f.phone} onChange={set("phone")} maxLength={40} /></label>
+      </div>
+      <div className="lbl">Кому ({targets.length})
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {offers.map((o) => (
+            <div key={o.domain} className="row" style={{ fontSize: 13.5, flexWrap: "wrap", gap: 8 }}>
+              <span style={{ flex: "1 1 160px", fontWeight: 700, color: "var(--text)" }}>{o.company || o.domain}</span>
+              {(o.emails || []).length > 1
+                ? <select className="inp" style={{ flex: "1 1 180px", minHeight: 36 }} value={mails[o.domain] || ""} onChange={(e) => setMails({ ...mails, [o.domain]: e.target.value })}>{o.emails.map((e) => <option key={e} value={e}>{e}</option>)}<option value="">не отправлять</option></select>
+                : <span className="hint" style={{ flex: "1 1 180px" }}>{(o.emails || [])[0]}</span>}
+              {!mailReady && (o.emails || [])[0] && <a className="btn sm soft" href={`mailto:${mails[o.domain] || o.emails[0]}?subject=${encodeURIComponent("Запрос КП: " + f.title)}&body=${encodeURIComponent(mailText)}`}>Написать</a>}
+            </div>
+          ))}
+        </div>
+      </div>
+      {mailReady ? <div className="hint">Каждый получит письмо со ссылкой: ответить можно в один клик, без регистрации. Ответы соберутся во вкладке «Заявки», а прямые ответы на письмо придут на вашу почту.</div>
+        : <div className="banner" style={{ background: "var(--warn-soft)", fontSize: 13.5 }}><span style={{ flex: "1 1 200px" }}>Отправка писем из сервиса скоро заработает. Пока нажмите «Написать» — откроется ваша почта с готовым текстом.</span><Btn size="sm" icon="copy" onClick={() => { try { navigator.clipboard.writeText(mailText); toast("Текст скопирован"); } catch (e) { /* */ } }}>Скопировать текст</Btn></div>}
+      {err && <div role="alert" className="banner" style={{ background: "var(--bad-soft)", color: "var(--bad)", fontSize: 13.5, fontWeight: 700, padding: "10px 12px" }}>{err}</div>}
+    </Modal>
+  );
+}
+
+function SrcResult({ cid, sid }) {
+  const { api, nav, toast } = useApp();
+  const cfg = useSrcConfig().data;
+  const { data: s, error, loading, reload, setData } = useLoad(() => api.get(`/api/c/${cid}/src/search/${sid}`), [cid, sid], false);
+  const [picked, setPicked] = useState([]);
+  const [rfq, setRfq] = useState(false);
+  const [busy, setBusy] = useState("");
+  const running = s?.status === "running";
+  useEffect(() => {
+    if (!running) return undefined;
+    const t = setInterval(async () => { try { setData(await api.get(`/api/c/${cid}/src/search/${sid}`)); } catch (e) { /* */ } }, 2000);
+    return () => clearInterval(t);
+  }, [running, cid, sid]); // eslint-disable-line
+  if (loading && !s) return <PageSkeleton />;
+  if (error && !s) return <div className="wrap"><ErrorBox error={error} onRetry={reload} /></div>;
+  const info = s.info || {};
+  const offers = s.results || [];
+  const listPage = s.kind === "pack" ? "pack" : "search";
+  const again = async (query, key) => {
+    setBusy(key);
+    try {
+      const p = s.params || {};
+      const r = await api.post(`/api/c/${cid}/src/search`, { kind: s.kind, query, qty: p.qty, region: p.region, grade: p.grade, docs: p.docs, pack: query === s.query ? p.pack : {} });
+      setPicked([]); nav(`c/${cid}/result/${r.id}`);
+    } catch (e) { toast(e.message, "bad"); }
+    setBusy("");
+  };
+  const pickedOffers = offers.filter((o) => picked.includes(o.domain));
+  const withMail = offers.filter((o) => (o.emails || []).length).length;
+  return (
+    <div className="wrap">
+      <PageHead title={info.title || s.title || s.query} sub={srcParamsLine(s, cfg) || "Поиск поставщиков"}
+        back={<button type="button" className="btn ghost sm" style={{ alignSelf: "flex-start", padding: 0, minHeight: 28 }} onClick={() => nav(`c/${cid}/${listPage}`)}><Icon name="left" size={16} />Новый поиск</button>} />
+      {running && (
+        <section className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }} aria-live="polite">
+          <div className="row"><span className="spin" /><b style={{ fontSize: 15 }}>{s.stage || "Ищу"}…</b></div>
+          {s.total > 0 && <div><div style={{ height: 8, borderRadius: 4, background: "#1B2029", overflow: "hidden" }}><div style={{ width: `${Math.round((s.done / s.total) * 100)}%`, height: "100%", background: "var(--accent)", transition: "width .4s" }} /></div><div className="hint" style={{ marginTop: 6 }}>Прочитано сайтов: {s.done} из {s.total}</div></div>}
+          <div className="hint">Обычно 1–2 минуты. Можно уйти со страницы — результат сохранится в «Недавних поисках».</div>
+        </section>
+      )}
+      {s.status === "error" && (
+        <div className="card" style={{ borderColor: "rgba(248,113,113,.35)", display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="row" style={{ alignItems: "flex-start" }}><span style={{ color: "var(--bad)" }}><Icon name="alert" /></span><div style={{ flex: 1, lineHeight: 1.5 }}>{s.error}</div></div>
+          <Btn icon="refresh" loading={busy === "again"} onClick={() => again(s.query, "again")} style={{ alignSelf: "flex-start" }}>Искать ещё раз</Btn>
+        </div>
+      )}
+      {s.stage && !running && <div className="hint">{s.stage}</div>}
+      {(info.name_en || info.synonyms?.length || info.cas || info.specs) && (
+        <section className="card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <h2 className="h2">{s.kind === "pack" ? "Позиция" : "Ингредиент"}</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: "8px 16px", fontSize: 13.5 }}>
+            {[["Международное название", info.name_en], ["CAS", info.cas], ["Категория", info.category], ["Формы", (info.forms || []).join(", ")], ["На что смотреть", info.specs]].filter(([, v]) => v)
+              .map(([l, v]) => <div key={l}><div className="hint">{l}</div><div style={{ fontWeight: 600 }}>{v}</div></div>)}
+          </div>
+          {info.synonyms?.length > 0 && <div><div className="hint" style={{ marginBottom: 6 }}>Ещё ищут как — нажмите, чтобы искать по этому названию</div><div className="wrapflex" style={{ gap: 8 }}>{info.synonyms.map((x) => <Btn key={x} size="sm" loading={busy === x} onClick={() => again(x, x)}>{x}</Btn>)}</div></div>}
+        </section>
+      )}
+      {(info.warnings || []).length > 0 && (
+        <div className="banner" style={{ background: "var(--warn-soft)", border: "1px solid rgba(245,181,68,.35)", alignItems: "flex-start" }}>
+          <Icon name="alert" size={18} style={{ color: "var(--warn)", marginTop: 2 }} />
+          <div style={{ flex: "1 1 220px", display: "flex", flexDirection: "column", gap: 4, fontSize: 13.5, lineHeight: 1.5 }}>{info.warnings.map((w) => <div key={w}>{w}</div>)}</div>
+        </div>
+      )}
+      {(info.analogs || []).length > 1 && (
+        <section className="card" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+          <div style={{ paddingBottom: 6 }}><h2 className="h2">Аналоги и замены</h2><div className="hint" style={{ marginTop: 4 }}>Подсказка ИИ — перед заменой обязательно проверьте у технолога.</div></div>
+          {info.analogs.map((a) => (
+            <div key={a.name} className="list-row" style={{ alignItems: "flex-start", flexWrap: "wrap" }}>
+              <div style={{ flex: "1 1 240px", minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
+                <div className="row" style={{ gap: 8, flexWrap: "wrap" }}><b style={{ fontSize: 14 }}>{a.name}</b><Pill color={SRC_REL[a.relation]?.color} bg={SRC_REL[a.relation]?.bg}>{SRC_REL[a.relation]?.label}</Pill></div>
+                {a.diff && <div className="hint" style={{ fontSize: 13 }}>{a.diff}</div>}
+                {a.note && <div className="hint" style={{ fontSize: 13, color: "var(--dim)" }}>{a.note}</div>}
+              </div>
+              {a.relation !== "same" && <Btn size="sm" icon="search" loading={busy === a.name} onClick={() => again(a.name, a.name)}>Искать</Btn>}
+            </div>
+          ))}
+        </section>
+      )}
+      {(offers.length > 0 || !running) && s.status !== "error" && (
+        <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div className="between" style={{ flexWrap: "wrap" }}>
+            <h2 className="h2">Поставщики · {offers.length}{running ? " (ищу ещё)" : ""}</h2>
+            {withMail > 0 && !running && <button type="button" className="btn ghost sm" onClick={() => setPicked(picked.length ? [] : offers.filter((o) => (o.emails || []).length).slice(0, 10).map((o) => o.domain))}>{picked.length ? "Снять выбор" : "Выбрать всех с почтой"}</button>}
+          </div>
+          {!running && offers.length === 0 && <div className="card"><Empty icon="search" title="Поставщиков с этой позицией не нашлось" text="Попробуйте другое название — подсказки выше, — или выберите «Вся Россия»." /></div>}
+          {offers.map((o) => <OfferCard key={o.domain} o={o} picked={picked.includes(o.domain)} onPick={() => setPicked(picked.includes(o.domain) ? picked.filter((x) => x !== o.domain) : [...picked, o.domain].slice(-10))} />)}
+          {!running && offers.length > 0 && <div className="hint">Цены — как на сайтах поставщиков, могут быть устаревшими. Точную цену даст коммерческое предложение: отметьте поставщиков и нажмите «Запросить КП».</div>}
+        </section>
+      )}
+      {picked.length > 0 && (
+        <div className="savebar">
+          <span style={{ flex: "1 1 140px", fontWeight: 800 }}>Выбрано: {picked.length}</span>
+          <Btn kind="primary" icon="send" onClick={() => setRfq(true)}>Запросить КП</Btn>
+        </div>
+      )}
+      {rfq && <RfqModal cid={cid} search={s} offers={pickedOffers} onClose={() => setRfq(false)} />}
+    </div>
+  );
+}
+
+function SrcRfqs({ cid }) {
+  const { api, nav, toast } = useApp();
+  const { data, error, loading, reload } = useLoad(() => api.get(`/api/c/${cid}/src/rfqs`), [cid], 2000);
+  const [open, setOpen] = useState(null);
+  if (loading && !data) return <PageSkeleton />;
+  if (error && !data) return <div className="wrap"><ErrorBox error={error} onRetry={reload} /></div>;
+  const items = data.items || [];
+  return (
+    <div className="wrap">
+      <PageHead title="Заявки на КП" sub="Ответы поставщиков в одном месте — сравнивайте цены, сроки и документы" />
+      {!items.length && <div className="card"><Empty icon="mail" title="Заявок пока нет" text="Найдите поставщиков, отметьте нужных и нажмите «Запросить КП» — письмо уйдёт всем сразу." action={<Btn kind="primary" icon="search" onClick={() => nav(`c/${cid}/search`)}>Найти поставщиков</Btn>} /></div>}
+      {items.map((r) => {
+        const ts = r.targets || [];
+        const cnt = (st) => ts.filter((t) => st.includes(t.status)).length;
+        const isOpen = open === r.id || (open === null && r === items[0]);
+        const sorted = [...ts].sort((a, b) => ["answered", "opened", "sent", "queued", "declined", "failed"].indexOf(a.status) - ["answered", "opened", "sent", "queued", "declined", "failed"].indexOf(b.status));
+        return (
+          <section key={r.id} className="card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <button type="button" onClick={() => setOpen(isOpen ? "" : r.id)} style={{ all: "unset", cursor: "pointer", display: "flex", gap: 12, alignItems: "flex-start" }} aria-expanded={isOpen}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 800, fontSize: 15 }}>{r.title}</div>
+                <div className="hint" style={{ marginTop: 3 }}>{whenShort(r.created_at)} · {ts.length} {plural(ts.length, "поставщик", "поставщика", "поставщиков")} · открыли {cnt(["opened", "answered", "declined"])} · ответили {r.answered}</div>
+              </div>
+              {r.status === "closed" ? <Pill>закрыта</Pill> : r.answered > 0 ? <Pill color="var(--ok)" bg="var(--ok-soft)">{r.answered} {plural(r.answered, "ответ", "ответа", "ответов")}</Pill> : <Pill color="var(--dim)">ждём ответов</Pill>}
+              <Icon name={isOpen ? "x" : "right"} size={16} style={{ color: "var(--faint)" }} />
+            </button>
+            {isOpen && (<>
+              <div className="hint" style={{ whiteSpace: "pre-wrap", fontSize: 13, background: "var(--input)", borderRadius: 10, padding: "10px 12px", lineHeight: 1.5 }}>{r.body}</div>
+              {sorted.map((t) => {
+                const a = t.answer || {};
+                const st = RFQ_ST[t.status] || RFQ_ST.sent;
+                return (
+                  <div key={t.id} style={{ borderTop: "1px solid var(--line3)", paddingTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                    <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+                      <b style={{ flex: "1 1 160px", fontSize: 14 }}>{t.supplier || t.domain}</b>
+                      <span style={{ fontSize: 12.5, fontWeight: 800, color: st.color }}>{st.label}</span>
+                    </div>
+                    <div className="hint">{t.email}{t.error ? ` · ${t.error}` : ""}</div>
+                    {t.status === "answered" && (
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(170px, 100%), 1fr))", gap: "6px 14px", fontSize: 13.5, background: "var(--ok-soft)", borderRadius: 10, padding: "10px 12px" }}>
+                        <div style={{ gridColumn: "1 / -1", fontSize: 16, fontWeight: 800 }}>{a.price}</div>
+                        {[["Срок", a.lead_time], ["Мин. партия", a.min_qty], ["Документы", a.docs], ["Действует до", a.valid_until], ["Доставка", a.delivery], ["Контакт", [a.contact_name, a.contact_phone, a.contact_email].filter(Boolean).join(", ")]].filter(([, v]) => v)
+                          .map(([l, v]) => <div key={l}><span className="hint">{l}: </span><span style={{ fontWeight: 600 }}>{v}</span></div>)}
+                        {a.comment && <div style={{ gridColumn: "1 / -1" }} className="dim">{a.comment}</div>}
+                      </div>
+                    )}
+                    {t.status === "declined" && a.comment && <div className="hint">«{a.comment}»</div>}
+                  </div>
+                );
+              })}
+              <div className="row" style={{ flexWrap: "wrap", gap: 8, borderTop: "1px solid var(--line3)", paddingTop: 10 }}>
+                {r.search_id && <Btn size="sm" onClick={() => nav(`c/${cid}/result/${r.search_id}`)}>К результатам поиска</Btn>}
+                <Btn size="sm" kind="ghost" onClick={async () => { try { await api.post(`/api/c/${cid}/src/rfq/${r.id}/close`, { reopen: r.status === "closed" }); toast(r.status === "closed" ? "Заявка снова открыта" : "Заявка закрыта — новые ответы не принимаются"); reload(); } catch (e) { toast(e.message, "bad"); } }}>{r.status === "closed" ? "Открыть снова" : "Закрыть заявку"}</Btn>
+              </div>
+            </>)}
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function SrcSuppliers({ cid }) {
+  const { api } = useApp();
+  const [q, setQ] = useState("");
+  const [qq, setQq] = useState("");
+  useEffect(() => { const t = setTimeout(() => setQq(q), 350); return () => clearTimeout(t); }, [q]);
+  const { data, error, loading, reload } = useLoad(() => api.get(`/api/c/${cid}/src/suppliers?q=${encodeURIComponent(qq)}`), [cid, qq], false);
+  return (
+    <div className="wrap">
+      <PageHead title="Поставщики" sub={data ? `В базе ${data.total} ${plural(data.total, "компания", "компании", "компаний")} — пополняется с каждым поиском` : "База пополняется с каждым поиском"} />
+      <label className="row card tight" style={{ gap: 10 }}><Icon name="search" size={18} style={{ color: "var(--faint)" }} /><input className="inp" style={{ border: 0, background: "transparent", padding: 0 }} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Компания, сайт, город или сырьё" aria-label="Поиск по базе" /></label>
+      {loading && !data && <Skeleton h={300} />}
+      {error && !data && <ErrorBox error={error} onRetry={reload} />}
+      {data && !data.items.length && <div className="card"><Empty icon="users" title={qq ? "Никого не нашлось" : "База пока пустая"} text={qq ? "Попробуйте другое слово." : "Запустите поиск сырья — найденные поставщики появятся здесь."} /></div>}
+      {data && data.items.map((s) => (
+        <article key={s.domain} className="card tight" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+            <b style={{ flex: "1 1 180px", fontSize: 15 }}>{s.name || s.domain}</b>
+            {s.verified && <Pill color="var(--ok)" bg="var(--ok-soft)">Проверен</Pill>}
+            <EgrulPill eg={s.egrul} />
+          </div>
+          <div className="row hint" style={{ gap: 8, flexWrap: "wrap" }}>
+            <a href={s.site} target="_blank" rel="noreferrer" style={{ fontWeight: 700 }}>{s.domain} ↗</a>
+            {s.city && <span>{s.city}</span>}{SRC_KIND[s.kind] && <span>· {SRC_KIND[s.kind]}</span>}
+          </div>
+          {(s.products || []).length > 0 && <div style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 13 }}>{s.products.slice(0, 4).map((p) => <div key={p.q + p.url} className="between"><a href={p.url} target="_blank" rel="noreferrer" style={{ color: "var(--dim)", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.q}</a><span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>{srcPrice(p) || "по запросу"}</span></div>)}</div>}
+          {((s.emails || []).length > 0 || (s.phones || []).length > 0) && <div className="wrapflex" style={{ gap: 8 }}>{(s.emails || []).slice(0, 2).map((e) => <a key={e} className="btn sm" href={`mailto:${e}`}>{e}</a>)}{(s.phones || []).slice(0, 1).map((p) => <a key={p} className="btn sm" href={`tel:${p}`}>{p}</a>)}</div>}
+        </article>
+      ))}
+    </div>
+  );
+}
+
+// ── Ответ поставщика по ссылке из письма (без входа) ──
+function OfferPage({ token }) {
+  const [d, setD] = useState(null);
+  const [err, setErr] = useState("");
+  const [f, setF] = useState({ price: "", min_qty: "", lead_time: "", docs: "", valid_until: "", delivery: "", comment: "", contact_name: "", contact_phone: "", contact_email: "" });
+  const [busy, setBusy] = useState("");
+  const [done, setDone] = useState("");
+  const [formErr, setFormErr] = useState("");
+  useEffect(() => {
+    fetch(`${API}/api/offer/${encodeURIComponent(token)}`).then(async (r) => {
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) setErr(j.detail || "Ссылка не открылась"); else { setD(j); if (j.answer && !j.answer.decline) setF((x) => ({ ...x, ...j.answer })); }
+    }).catch(() => setErr("Сервер недоступен. Проверьте интернет."));
+  }, [token]);
+  const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
+  const submit = async (decline) => {
+    setBusy(decline ? "no" : "yes"); setFormErr("");
+    try {
+      const r = await fetch(`${API}/api/offer/${encodeURIComponent(token)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(decline ? { decline: true, comment: f.comment } : f) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) setFormErr(j.detail || "Не получилось отправить"); else { setDone(decline ? "no" : "yes"); window.scrollTo(0, 0); }
+    } catch (e) { setFormErr("Сервер недоступен. Проверьте интернет."); }
+    setBusy("");
+  };
+  const shell = (children) => (
+    <div style={{ minHeight: "100vh", display: "flex", justifyContent: "center", padding: "24px 16px 40px", background: "radial-gradient(900px 500px at 70% -10%, rgba(47,99,230,.16), transparent 70%), var(--bg)" }}>
+      <div style={{ width: "100%", maxWidth: 560, display: "flex", flexDirection: "column", gap: 16 }}>{children}</div>
+    </div>
+  );
+  if (err) return shell(<div className="card"><Empty icon="alert" title="Не получилось открыть заявку" text={err} /></div>);
+  if (!d) return shell(<Skeleton h={420} />);
+  if (done) return shell(
+    <div className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <span style={{ width: 48, height: 48, borderRadius: 14, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--ok-soft)", color: "var(--ok)" }}><Icon name="check" size={26} sw={2.6} /></span>
+      <h1 className="h2" style={{ fontSize: 21 }}>{done === "yes" ? "Спасибо! Предложение отправлено" : "Спасибо, отметили"}</h1>
+      <div className="sub" style={{ lineHeight: 1.55 }}>{done === "yes" ? `${d.buyer.company || "Покупатель"} получит ваше предложение и свяжется с вами. Изменить ответ можно по этой же ссылке.` : "Больше писать по этой заявке не будем."}</div>
+    </div>
+  );
+  return shell(<>
+    <div className="row" style={{ gap: 12 }}>
+      <span className="brand-logo"><Icon name="mail" size={18} sw={2} /></span>
+      <div style={{ flex: 1 }}><div style={{ fontWeight: 800, fontSize: 17 }}>Запрос коммерческого предложения</div><div className="hint">{d.buyer.company || d.buyer.name || "Покупатель"}{d.created_at ? ` · ${whenShort(d.created_at)}` : ""}</div></div>
+    </div>
+    <section className="card" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <h1 className="h2" style={{ fontSize: 18 }}>{d.title}</h1>
+      <div style={{ whiteSpace: "pre-wrap", fontSize: 14.5, lineHeight: 1.55, color: "var(--dim)" }}>{d.body}</div>
+    </section>
+    {d.closed ? <div className="card"><Empty icon="clock" title="Покупатель уже закрыл эту заявку" text="Спасибо за внимание!" /></div> : (
+      <form className="card" style={{ display: "flex", flexDirection: "column", gap: 14 }} onSubmit={(e) => { e.preventDefault(); submit(false); }}>
+        <h2 className="h2">Ваше предложение{d.status === "answered" ? " · можно изменить" : ""}</h2>
+        <label className="lbl">Цена *<input className="inp" value={f.price} onChange={set("price")} placeholder="Например, 320 ₽/кг при 100 кг" maxLength={80} /></label>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))", gap: 12 }}>
+          <label className="lbl">Минимальная партия<input className="inp" value={f.min_qty} onChange={set("min_qty")} maxLength={80} /></label>
+          <label className="lbl">Срок поставки<input className="inp" value={f.lead_time} onChange={set("lead_time")} placeholder="3 рабочих дня" maxLength={80} /></label>
+          <label className="lbl">Документы<input className="inp" value={f.docs} onChange={set("docs")} placeholder="COA, паспорт качества" maxLength={200} /></label>
+          <label className="lbl">Цена действует до<input className="inp" value={f.valid_until} onChange={set("valid_until")} maxLength={40} /></label>
+        </div>
+        <label className="lbl">Доставка<input className="inp" value={f.delivery} onChange={set("delivery")} maxLength={160} /></label>
+        <label className="lbl">Комментарий<textarea className="inp" rows={3} value={f.comment} onChange={set("comment")} maxLength={1500} /></label>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(160px, 100%), 1fr))", gap: 12 }}>
+          <label className="lbl">Контактное лицо<input className="inp" value={f.contact_name} onChange={set("contact_name")} maxLength={80} /></label>
+          <label className="lbl">Телефон<input className="inp" type="tel" value={f.contact_phone} onChange={set("contact_phone")} maxLength={40} /></label>
+          <label className="lbl">Почта<input className="inp" type="email" value={f.contact_email} onChange={set("contact_email")} maxLength={120} /></label>
+        </div>
+        {formErr && <div role="alert" className="banner" style={{ background: "var(--bad-soft)", color: "var(--bad)", fontSize: 13.5, fontWeight: 700, padding: "10px 12px" }}>{formErr}</div>}
+        <Btn kind="primary" type="submit" loading={busy === "yes"} style={{ minHeight: 48 }}>Отправить предложение</Btn>
+        <Btn kind="ghost" loading={busy === "no"} onClick={() => submit(true)}>Не поставляем эту позицию</Btn>
+        <div className="hint" style={{ lineHeight: 1.5 }}>Регистрация не нужна. Ваш ответ увидит только покупатель, отправивший заявку.</div>
+      </form>
+    )}
+  </>);
+}
+
+// ── Админка: подключение поиска, почты и бота закупок ──
+function AdminSrcSetup() {
+  const { api, toast } = useApp();
+  const { data, reload } = useLoad(() => api.get("/api/admin/src-setup"), [], false);
+  const [tok, setTok] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (!data) return null;
+  const rows = [["Таблицы в базе", data.schema, "запустите update-sourcing.sql"], ["Поиск Яндекса", data.search, "YANDEX_SEARCH_KEY и YANDEX_FOLDER_ID"],
+    ["Отправка писем", data.mail, "SMTP_HOST, SMTP_USER, SMTP_PASS"], ["Проверка ИНН", data.dadata, "DADATA_KEY (необязательно)"], ["Бот закупок", !!data.bot, "токен ниже"]];
+  const save = async (t) => {
+    setBusy(true);
+    try { const r = await api.post("/api/admin/src-bot", { token: t }); toast(r.bot ? `Бот @${r.bot} подключён` : "Бот отключён"); setTok(""); reload(); } catch (e) { toast(e.message, "bad"); }
+    setBusy(false);
+  };
+  return (
+    <section className="card" style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+      <div className="between" style={{ alignItems: "flex-start", paddingBottom: 8 }}>
+        <div><h2 className="h2">Закупки</h2><div className="hint" style={{ marginTop: 2 }}>поиск сырья и поставщиков</div></div>
+        <Pill color={data.search && data.schema ? "var(--ok)" : "var(--warn)"} bg={data.search && data.schema ? "var(--ok-soft)" : "var(--warn-soft)"}>{data.search && data.schema ? "Работает" : "Не настроено"}</Pill>
+      </div>
+      {rows.map(([l, okk, how]) => <div key={l} className="between" style={{ padding: "9px 0", borderTop: "1px solid var(--line3)", fontSize: 13.5 }}><span className="dim">{l}</span><span style={{ fontWeight: 700, textAlign: "right", color: okk ? "var(--ok)" : "var(--faint)" }}>{okk ? (l === "Бот закупок" ? `@${data.bot}` : "подключено") : how}</span></div>)}
+      <div className="between" style={{ padding: "9px 0", borderTop: "1px solid var(--line3)", fontSize: 13.5 }}><span className="dim">Поисков за 30 дней</span><span style={{ fontWeight: 700 }}>{data.searches_month} · ≈{rub(data.cost_month)}</span></div>
+      {!data.env_bot && (
+        <div className="row" style={{ gap: 8, paddingTop: 8 }}>
+          <input className="inp" type="password" autoComplete="off" value={tok} onChange={(e) => setTok(e.target.value)} placeholder={data.bot ? "новый токен бота закупок" : "токен бота закупок от @BotFather"} style={{ flex: 1, minWidth: 0 }} />
+          <Btn loading={busy} disabled={!tok.trim()} onClick={() => save(tok.trim())}>Подключить</Btn>
+          {data.bot && <Btn kind="ghost" onClick={() => save("")}>Отключить</Btn>}
+        </div>
+      )}
+    </section>
   );
 }
