@@ -69,6 +69,18 @@ select.inp{padding:0 10px}
 .hint{font-size:12.5px;line-height:1.5;color:var(--faint);font-weight:500}
 .chip{display:inline-flex;align-items:center;gap:7px;min-height:38px;padding:0 14px;border-radius:20px;border:1px solid var(--line2);background:transparent;color:var(--dim);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
 .chip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-text)}
+.src-item{display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:12px;border:1px solid var(--line2);background:rgba(255,255,255,.015)}
+.src-item.on{border-color:rgba(47,99,230,.55)}
+.src-num{width:24px;height:24px;border-radius:12px;background:#1B2029;color:var(--dim);font-size:12px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.src-kinds{display:flex;gap:4px;padding:3px;border-radius:11px;background:var(--input);border:1px solid var(--line2);min-width:0;max-width:100%;overflow-x:auto;scrollbar-width:none}
+.src-kinds::-webkit-scrollbar{display:none}
+.src-kinds{flex:1}
+.src-kinds button{flex:1;justify-content:center;display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 8px;border:0;border-radius:8px;background:transparent;color:var(--dim);font-size:12.5px;font-weight:700;cursor:pointer;white-space:nowrap}
+.src-kinds button.on{background:var(--accent-soft);color:var(--accent-text)}
+.src-add{justify-content:flex-start;gap:8px;min-height:46px;border-style:dashed;flex-wrap:wrap;text-align:left}
+.flt-row{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.flt-row::-webkit-scrollbar{display:none}
+.flt-row .chip{min-height:34px;padding:0 12px}
 .seg{display:inline-flex;padding:4px;gap:4px;border-radius:12px;background:var(--card);border:1px solid var(--line);flex-wrap:wrap}
 .seg button{min-height:36px;padding:0 14px;border-radius:9px;border:0;background:transparent;color:var(--dim);font-size:13.5px;font-weight:700;cursor:pointer;white-space:nowrap}
 .seg button.on{background:#232833;color:var(--text);font-weight:800}
@@ -152,6 +164,9 @@ select.inp{padding:0 10px}
   .cab-2{grid-template-columns:minmax(0,1fr)}
 }
 @media (max-width:860px){
+  .inp{font-size:16px}
+  .src-kinds button svg{display:none}
+  .src-kinds button{padding:0 4px}
   .tabs{flex-wrap:wrap;overflow-x:visible}
   .tabs button{padding:0 12px}
   .side{display:none}
@@ -702,7 +717,7 @@ function Signup({ onDone }) {
   const [step, setStep] = useState(1);
   const [product, setProduct] = useState(() => { const p = hashQuery().p; return p === "src" ? "sourcing" : p === "shop" ? "shop" : null; });
   const src = product === "sourcing";
-  const [f, setF] = useState({ name: "", niche: "", city: "", phone: "", tg: "", password: "" });
+  const [f, setF] = useState({ name: "", niche: "", city: "", phone: "", tg: "", password: "", industry: "", industry_text: "" });
   const [show, setShow] = useState(false);
   const [vals, setVals] = useState({});
   const [chk, setChk] = useState(null);
@@ -718,7 +733,7 @@ function Signup({ onDone }) {
   const ch = cfg && cfg.channels[0];
   const set = (k) => (e) => setF({ ...f, [k]: e.target.value });
   const digits = phoneDigits(f.phone);
-  const step1Err = f.name.trim().length < 2 ? (src ? "Напишите название компании" : "Напишите название магазина") : (!f.niche && !src) ? "Выберите, что продаёте"
+  const step1Err = f.name.trim().length < 2 ? (src ? "Напишите название компании" : "Напишите название магазина") : (!f.niche && !src) ? "Выберите, что продаёте" : (src && (cfg?.industries || []).length > 0 && !f.industry) ? "Выберите отрасль — можно «Другое»"
     : digits.length < 10 ? "Напишите телефон — по нему вы будете входить" : f.password.length < 6 ? "Пароль — не короче 6 символов" : "";
   const runCheck = (data) => {
     const my = ++seq.current;
@@ -761,7 +776,7 @@ function Signup({ onDone }) {
       <div style={{ width: "100%", maxWidth: 520, display: "flex", flexDirection: "column", gap: 16 }}>
         <div className="row" style={{ gap: 12 }}>
           <span className="brand-logo"><Icon name="chat" size={19} sw={2} /></span>
-          <div style={{ flex: 1 }}><div style={{ fontWeight: 800, fontSize: 19, letterSpacing: -.3 }}>ChatAIbot</div><div className="hint">{src ? "Поиск сырья и поставщиков" : product ? "ИИ-продавец для вашего магазина" : "ИИ-помощники для бизнеса"}</div></div>
+          <div style={{ flex: 1 }}><div style={{ fontWeight: 800, fontSize: 19, letterSpacing: -.3 }}>ChatAIbot</div><div className="hint">{src ? "Поиск поставщиков" : product ? "ИИ-продавец для вашего магазина" : "ИИ-помощники для бизнеса"}</div></div>
           {product === "shop" && step < 3 && <span className="hint" style={{ fontWeight: 700 }}>Шаг {step} из 2</span>}
         </div>
         {children}
@@ -789,10 +804,17 @@ function Signup({ onDone }) {
   if (step === 1) return shell(
     <form className="card" style={{ display: "flex", flexDirection: "column", gap: 16 }} onSubmit={(e) => { e.preventDefault(); if (step1Err) setErr(step1Err); else if (src) submit(); else { setErr(""); setStep(2); window.scrollTo(0, 0); } }}>
       <div>
-        <h1 className="h2" style={{ fontSize: 22 }}>{src ? "Поиск сырья и поставщиков" : "Подключите бота за 10 минут"}</h1>
-        <div className="sub" style={{ marginTop: 6, lineHeight: 1.5 }}>{src ? "Сырьё, упаковка и аналоги: цены, контакты поставщиков, проверка компаний и заявки на КП в одном месте." : "Бот будет отвечать покупателям, показывать товары с фото и принимать заказы — днём и ночью."} {cfg.trial_days} дней бесплатно, без карты.</div>
+        <h1 className="h2" style={{ fontSize: 22 }}>{src ? "Поиск поставщиков" : "Подключите бота за 10 минут"}</h1>
+        <div className="sub" style={{ marginTop: 6, lineHeight: 1.5 }}>{src ? "Сырьё, материалы, упаковка — что угодно: цены, контакты поставщиков, проверка компаний и заявки на КП в одном месте." : "Бот будет отвечать покупателям, показывать товары с фото и принимать заказы — днём и ночью."} {cfg.trial_days} дней бесплатно, без карты.</div>
       </div>
       <label className="lbl">{src ? "Название компании" : "Название магазина"}<input className="inp" value={f.name} onChange={set("name")} placeholder={src ? "Например, НутриЛаб" : "Например, Цветы у дома"} maxLength={80} /></label>
+      {src && (cfg.industries || []).length > 0 && <div className="lbl" role="group" aria-label="Отрасль">Ваша отрасль
+        <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
+          {cfg.industries.map((n) => <Chip key={n.key} on={f.industry === n.key} onClick={() => setF({ ...f, industry: n.key })}>{n.emoji} {n.title}</Chip>)}
+        </div>
+        {f.industry === "other" && <input className="inp" value={f.industry_text} onChange={set("industry_text")} placeholder="Например, мебельное производство" maxLength={80} />}
+        <span className="hint" style={{ fontWeight: 500 }}>Для подсказок и проверки аналогов. Искать можно что угодно.</span>
+      </div>}
       {!src && <div className="lbl" role="group" aria-label="Что продаёте">Что продаёте
         <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
           {cfg.niches.map((n) => <Chip key={n.key} on={f.niche === n.key} onClick={() => setF({ ...f, niche: n.key })}>{n.emoji} {n.title}</Chip>)}
@@ -966,8 +988,7 @@ function Sidebar({ scope, page, cid, badges, onLogout }) {
     return (
       <nav className="side" aria-label="Разделы кабинета">
         <div className="brand"><span className="tile">{initials(name)}</span><div style={{ minWidth: 0 }}><div style={{ fontWeight: 800, fontSize: 15, lineHeight: 1.25 }}>{name}</div><div className="hint" style={{ fontSize: 12 }}>закупки · ChatAIbot</div></div></div>
-        <NavItem icon="flask" label="Сырьё" on={page === "search" || page === "result"} onClick={() => nav(`c/${cid}/search`)} />
-        <NavItem icon="box" label="Упаковка" on={page === "pack"} onClick={() => nav(`c/${cid}/pack`)} />
+        <NavItem icon="search" label="Поиск поставщиков" on={page === "search" || page === "result" || page === "pack"} onClick={() => nav(`c/${cid}/search`)} />
         <NavItem icon="mail" label="Заявки на КП" on={page === "rfq"} onClick={() => nav(`c/${cid}/rfq`)} />
         <NavItem icon="users" label="Поставщики" on={page === "suppliers"} onClick={() => nav(`c/${cid}/suppliers`)} />
         <div style={{ flex: 1 }} />
@@ -1017,7 +1038,7 @@ function MobileBars({ scope, page, cid, badges, onLogout }) {
   const srcCab = scope === "cab" && isSrcCab(me, badges, isAdmin);
   const srcAdm = scope === "admin" && isSrcAdminPage(page);
   const sp = subPage();
-  const tabs = srcCab ? [["flask", "Сырьё", "search", `c/${cid}/search`], ["box", "Упаковка", "pack", `c/${cid}/pack`], ["mail", "Заявки", "rfq", `c/${cid}/rfq`]]
+  const tabs = srcCab ? [["search", "Поиск", "search", `c/${cid}/search`], ["mail", "Заявки", "rfq", `c/${cid}/rfq`], ["users", "Поставщики", "suppliers", `c/${cid}/suppliers`]]
     : srcAdm ? [["grid", "Обзор", "src:", "admin/src"], ["users", "Закупщики", "src:clients", "admin/src/clients"], ["flask", "Поиск", "find", "admin/find"]]
     : scope === "admin"
     ? [["grid", "Обзор", "overview", "admin"], ["users", "Клиенты", "clients", "admin/clients"], ["pulse", "Система", "system", "admin/system", badges?.warnings, "warn"]]
@@ -1039,17 +1060,16 @@ function MobileBars({ scope, page, cid, badges, onLogout }) {
     </div>
     <nav className="mtabs" aria-label="Разделы">
       {tabs.map(([ic, l, pg, path, b, bk]) => (
-        <button key={pg} type="button" className={page === pg || (pg === "clients" && page === "bot") || (srcCab && pg === "search" && page === "result") || (srcAdm && pg === `src:${sp || ""}` && page === "src") ? "on" : ""} aria-current={page === pg ? "page" : undefined} onClick={() => nav(path)}>
+        <button key={pg} type="button" className={page === pg || (pg === "clients" && page === "bot") || (srcCab && pg === "search" && (page === "result" || page === "pack")) || (srcAdm && pg === `src:${sp || ""}` && page === "src") ? "on" : ""} aria-current={page === pg ? "page" : undefined} onClick={() => nav(path)}>
           <Icon name={ic} size={22} />{l}
           {b > 0 && <span className="mb" style={bk === "warn" ? { background: "var(--warn)", color: "#1A1305" } : { background: "var(--accent)", color: "#fff" }}>{b}</span>}
         </button>
       ))}
-      <button type="button" className={["analytics", "catalog", "settings", "suppliers"].includes(page) ? "on" : ""} onClick={() => setMore(true)}><Icon name="menu" size={22} />Ещё</button>
+      <button type="button" className={!srcCab && ["analytics", "catalog", "settings"].includes(page) ? "on" : ""} onClick={() => setMore(true)}><Icon name="menu" size={22} />Ещё</button>
     </nav>
     {more && (
       <Modal title="Ещё" sheet onClose={() => setMore(false)}>
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          {srcCab && <NavItem icon="users" label="Поставщики" on={page === "suppliers"} onClick={() => { setMore(false); nav(`c/${cid}/suppliers`); }} />}
           {scope === "cab" && !srcCab && <>
             <NavItem icon="chart" label="Аналитика" on={page === "analytics"} onClick={() => { setMore(false); nav(`c/${cid}/analytics`); }} />
             <NavItem icon="box" label="Каталог" on={page === "catalog"} onClick={() => { setMore(false); nav(`c/${cid}/catalog`); }} />
@@ -3605,11 +3625,16 @@ function srcPrice(o) {
   return o.price_text || "";
 }
 
+function srcRegionTitle(p, cfg) {
+  if (p.region === "city" && p.city) return p.city;
+  return (cfg?.regions || []).find((r) => r.key === p.region)?.title || "";
+}
+
 function srcParamsLine(s, cfg) {
   const p = s?.params || {};
-  const reg = (cfg?.regions || []).find((r) => r.key === p.region);
   const gr = (cfg?.grades || []).find((g) => g.key === p.grade);
-  return [p.qty, reg?.title, gr && p.grade !== "any" ? gr.title : ""].filter(Boolean).join(" · ");
+  const sup = (cfg?.suppliers || []).find((x) => x.key === p.supplier);
+  return [p.qty, srcRegionTitle(p, cfg), gr && p.grade !== "any" ? gr.title : "", sup && p.supplier !== "any" ? sup.title.toLowerCase() : ""].filter(Boolean).join(" · ");
 }
 
 function EgrulPill({ eg }) {
@@ -3648,26 +3673,49 @@ function SrcTgCard({ cid }) {
   );
 }
 
-function SrcHistory({ cid, kind, base }) {
+function srcGroups(items) {
+  // позиции одного запроса (сырьё + упаковка + …) показываем одной строкой
+  const out = [];
+  const byBatch = {};
+  for (const s of items) {
+    const b = s.params?.batch;
+    if (b && byBatch[b]) { byBatch[b].rows.push(s); continue; }
+    const g = { key: b || s.id, rows: [s] };
+    if (b) byBatch[b] = g;
+    out.push(g);
+  }
+  for (const g of out) g.rows.sort((x, y) => (x.params?.bi || 0) - (y.params?.bi || 0));
+  return out;
+}
+
+function SrcHistory({ cid, base }) {
   const { api, nav } = useApp();
   const B = base || `c/${cid}`;
-  const { data } = useLoad(() => api.get(`/api/c/${cid}/src/searches?kind=${kind}`), [cid, kind], 3000);
+  const { data } = useLoad(() => api.get(`/api/c/${cid}/src/searches`), [cid], 3000);
   if (!data || !data.items.length) return null;
+  const groups = srcGroups(data.items).slice(0, 12);
   return (
     <section className="card" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-      <div className="between" style={{ paddingBottom: 6 }}><h2 className="h2">Недавние поиски</h2>{data.left !== null && data.left !== undefined && <span className="hint">{data.access?.trial ? `бесплатных поисков: ${data.left} из ${data.limit}` : `сегодня осталось ${data.left} из ${data.limit}`}</span>}</div>
-      {data.items.slice(0, 12).map((s) => (
-        <button key={s.id} type="button" className="list-row" onClick={() => nav(`${B}/result/${s.id}`)} style={{ background: "transparent", border: 0, borderTop: "1px solid var(--line3)", color: "var(--text)", textAlign: "left", cursor: "pointer", width: "100%", fontSize: 14 }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title || s.query}</div>
-            <div className="hint">{whenShort(s.created_at)}{s.params?.qty ? ` · ${s.params.qty}` : ""}</div>
-          </div>
-          {s.status === "running" ? <span className="row hint" style={{ gap: 6 }}><span className="spin" style={{ width: 14, height: 14 }} />ищу</span>
-            : s.status === "error" ? <Pill color="var(--bad)" bg="var(--bad-soft)">ошибка</Pill>
-              : <span style={{ fontWeight: 800, fontSize: 13, color: s.found ? "var(--text)" : "var(--faint)" }}>{s.found} {plural(s.found, "поставщик", "поставщика", "поставщиков")}</span>}
-          <Icon name="right" size={16} style={{ color: "var(--faint)" }} />
-        </button>
-      ))}
+      <div className="between" style={{ paddingBottom: 6, flexWrap: "wrap", gap: 6 }}><h2 className="h2">Недавние поиски</h2>{data.left !== null && data.left !== undefined && <span className="hint">{data.access?.trial ? `бесплатных поисков: ${data.left} из ${data.limit}` : `сегодня осталось ${data.left} из ${data.limit}`}</span>}</div>
+      {groups.map((g) => {
+        const first = g.rows[0];
+        const running = g.rows.some((r) => r.status === "running");
+        const err = g.rows.every((r) => r.status === "error");
+        const found = g.rows.reduce((n, r) => n + (r.found || 0), 0);
+        const title = g.rows.length > 1 ? g.rows.map((r) => r.title || r.query).join(" · ") : (first.title || first.query);
+        return (
+          <button key={g.key} type="button" className="list-row" onClick={() => nav(`${B}/result/${first.id}`)} style={{ background: "transparent", border: 0, borderTop: "1px solid var(--line3)", color: "var(--text)", textAlign: "left", cursor: "pointer", width: "100%", fontSize: 14 }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+              <div className="hint">{whenShort(first.created_at)}{g.rows.length > 1 ? ` · ${g.rows.length} ${plural(g.rows.length, "позиция", "позиции", "позиций")}` : first.params?.qty ? ` · ${first.params.qty}` : ""}</div>
+            </div>
+            {running ? <span className="row hint" style={{ gap: 6 }}><span className="spin" style={{ width: 14, height: 14 }} />ищу</span>
+              : err ? <Pill color="var(--bad)" bg="var(--bad-soft)">ошибка</Pill>
+                : <span style={{ fontWeight: 800, fontSize: 13, color: found ? "var(--text)" : "var(--faint)", whiteSpace: "nowrap" }}>{found} {plural(found, "поставщик", "поставщика", "поставщиков")}</span>}
+            <Icon name="right" size={16} style={{ color: "var(--faint)" }} />
+          </button>
+        );
+      })}
     </section>
   );
 }
@@ -3683,11 +3731,58 @@ function SrcAccessNote({ acc }) {
       <Icon name={used ? "shield" : "sparkle"} size={18} style={{ color: used ? "var(--warn)" : "var(--accent-text)" }} />
       <span style={{ flex: "1 1 220px", lineHeight: 1.45 }}>{used
         ? <><b>Бесплатный поиск использован.</b> Чтобы искать дальше, видеть всех поставщиков с контактами и отправлять им заявки — оформите подписку.</>
-        : <><b>Пробный доступ:</b> {acc.free_left} {plural(acc.free_left, "бесплатный поиск", "бесплатных поиска", "бесплатных поисков")}, в результатах откроем {acc.visible} {plural(acc.visible, "поставщика", "поставщиков", "поставщиков")}. Полный доступ — по подписке.</>}</span>
+        : <><b>Пробный доступ:</b> {acc.free_left} {plural(acc.free_left, "бесплатный поиск", "бесплатных поиска", "бесплатных поисков")} — до {acc.items_max} {plural(acc.items_max, "позиции", "позиций", "позиций")} в нём, по каждой откроем {acc.visible} {plural(acc.visible, "поставщика", "поставщиков", "поставщиков")}. Полный доступ — по подписке.</>}</span>
       {acc.sales && <a className={`btn sm ${used ? "primary" : "soft"}`} href={acc.sales} target="_blank" rel="noreferrer">Оформить подписку</a>}
     </div>
   );
 }
+
+const SRC_KIND_ICON = { raw: "flask", pack: "box", any: "grid" };
+const SRC_KIND_SHORT = { raw: "Сырьё", pack: "Упаковка", any: "Другое" };
+const SRC_PH = {
+  raw: { supplements: "Например, магния бисглицинат", food: "Например, пектин яблочный", cosmetics: "Например, масло ши", construction: "Например, арматура А500С 12 мм", other: "Название, марка или описание" },
+  pack: "Например, банка HDPE 150 мл белая",
+  any: "Оборудование, комплектующие, спецодежда — что угодно",
+};
+
+function IndustryPick({ cfg, prof, cid, onSaved, compact }) {
+  const { api, toast } = useApp();
+  const [open, setOpen] = useState(!prof.industry);
+  const [ind, setInd] = useState(prof.industry || "");
+  const [txt, setTxt] = useState(prof.industry_text || "");
+  const [busy, setBusy] = useState(false);
+  const cur = cfg.industries.find((x) => x.key === prof.industry);
+  const save = async (k) => {
+    setBusy(true);
+    try { await api.post(`/api/c/${cid}/src/profile`, { industry: k, industry_text: k === "other" ? txt : "" }); setOpen(false); onSaved(); } catch (e) { toast(e.message, "bad"); }
+    setBusy(false);
+  };
+  if (!open) {
+    return (
+      <div className="row" style={{ gap: 10, fontSize: 14 }}>
+        <span className="hint">Отрасль:</span>
+        <b style={{ flex: "1 1 auto", minWidth: 0 }}>{cur ? `${cur.emoji} ${prof.industry === "other" && prof.industry_text ? prof.industry_text : cur.title}` : "не выбрана"}</b>
+        <button type="button" className="btn ghost sm" style={{ minHeight: 32 }} onClick={() => setOpen(true)}>Изменить</button>
+      </div>
+    );
+  }
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      <div><b style={{ fontSize: 14 }}>Ваша отрасль</b><div className="hint" style={{ marginTop: 2 }}>Подстроим подсказки, документы и проверку аналогов. Искать можно что угодно.</div></div>
+      <div className="wrapflex" style={{ gap: 8 }}>{cfg.industries.map((x) => <Chip key={x.key} on={ind === x.key} onClick={() => { setInd(x.key); if (x.key !== "other") save(x.key); }}>{x.emoji} {x.title}</Chip>)}</div>
+      {ind === "other" && (
+        <div className="row" style={{ gap: 8 }}>
+          <input className="inp" value={txt} onChange={(e) => setTxt(e.target.value)} placeholder="Например, мебельное производство" maxLength={80} style={{ flex: 1, minWidth: 0 }} />
+          <Btn kind="primary" loading={busy} onClick={() => save("other")}>Готово</Btn>
+        </div>
+      )}
+      {!compact && prof.industry && <button type="button" className="btn ghost sm" style={{ alignSelf: "flex-start", minHeight: 30 }} onClick={() => setOpen(false)}>Отмена</button>}
+    </div>
+  );
+}
+
+let SRC_ITEM_SEQ = 1;
+const newItem = (kind = "raw") => ({ key: SRC_ITEM_SEQ++, kind, query: "", qty: "" });
 
 function SrcSearch({ cid, kind, base }) {
   const { api, nav, toast } = useApp();
@@ -3696,71 +3791,134 @@ function SrcSearch({ cid, kind, base }) {
   const cfg = cfgL.data;
   const accL = useLoad(() => api.get(`/api/c/${cid}/src/access`), [cid]);
   const acc = accL.data;
-  const [q, setQ] = useState("");
-  const [qty, setQty] = useState("");
-  const [region, setRegion] = useState("msk");
+  const profL = useLoad(() => api.get(`/api/c/${cid}/src/profile`), [cid], false);
+  const prof = profL.data;
+  const [items, setItems] = useState(() => [newItem(kind === "pack" ? "pack" : "raw")]);
+  const [act, setAct] = useState(0);
+  const [cat, setCat] = useState("");
+  const [region, setRegion] = useState(null);
+  const [city, setCity] = useState("");
+  const [supplier, setSupplier] = useState("any");
   const [grade, setGrade] = useState("any");
   const [docs, setDocs] = useState([]);
-  const [cat, setCat] = useState("");
-  const [pack, setPack] = useState({});
-  const [ptype, setPtype] = useState("");
+  const [notes, setNotes] = useState("");
+  const [more, setMore] = useState(false);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { setQ(""); setPack({}); setPtype(""); setCat(""); }, [kind]);
-  if (cfgL.loading && !cfg) return <PageSkeleton />;
+  useEffect(() => { if (kind === "pack") { setItems([newItem("pack")]); setAct(0); } }, [kind]);
+  useEffect(() => { setCat(""); }, [act]);
+  // где искать по умолчанию — город закупщика
+  useEffect(() => {
+    if (!prof || region) return;
+    const c = (prof.city || "").toLowerCase();
+    if (/москв/.test(c)) setRegion("msk");
+    else if (/петербург|спб/.test(c)) setRegion("spb");
+    else setRegion("ru");
+  }, [prof]); // eslint-disable-line
+  if ((cfgL.loading && !cfg) || (profL.loading && !prof)) return <PageSkeleton />;
   if (cfgL.error && !cfg) return <div className="wrap"><ErrorBox error={cfgL.error} onRetry={cfgL.reload} /></div>;
-  const raw = kind === "raw";
-  const packQuery = Object.values(pack).filter(Boolean).join(" ").trim();
-  const canGo = raw ? q.trim().length >= 2 : (q.trim().length >= 2 || packQuery.length >= 2);
-  const go = async (query) => {
+  if (profL.error && !prof) return <div className="wrap"><ErrorBox error={profL.error} onRetry={profL.reload} /></div>;
+  const ind = cfg.industries.find((x) => x.key === prof.industry) || cfg.industries.find((x) => x.key === "other");
+  const cap = acc?.items_max || 5;
+  const myCity = (prof.city || "").trim();
+  const ownCity = myCity && !/москв|петербург|спб/i.test(myCity) ? myCity : "";
+  const setItem = (i, patch) => setItems(items.map((it, j) => (j === i ? { ...it, ...patch } : it)));
+  const cur = items[act] || items[0];
+  const ready = items.filter((it) => it.query.trim().length >= 2);
+  const blocked = (acc && acc.trial && acc.free_left <= 0) || (acc && acc.expired);
+  const reg = region || "ru";
+  const cityOk = reg !== "city" || city.trim().length >= 2;
+  const canGo = ready.length > 0 && cityOk && cfg.search_ready && !blocked;
+  const packTypes = cfg.pack_types.filter((t) => ind.pack.includes(t.key));
+  const docOpts = cfg.docs.filter((d) => ind.docs.includes(d.key));
+  const hasRaw = items.some((it) => it.kind === "raw");
+  const go = async () => {
     setBusy(true);
     try {
-      const body = raw ? { kind, query: (query || q).trim(), qty, region, grade, docs } : { kind, query: q.trim(), region, pack, qty: pack.qty || "" };
-      const r = await api.post(`/api/c/${cid}/src/search`, body);
+      const r = await api.post(`/api/c/${cid}/src/search`, {
+        items: ready.map((it) => ({ kind: it.kind, query: it.query.trim(), qty: it.qty.trim() })),
+        region: reg, city: reg === "city" ? city.trim() : "", supplier, grade: ind.grades ? grade : "any", docs, notes,
+      });
       nav(`${B}/result/${r.id}`);
     } catch (e) { toast(e.message, "bad"); setBusy(false); }
   };
-  const curCat = (cfg.categories || []).find((c) => c.key === cat);
+  const curCat = (ind.categories || []).find((c) => c.key === cat);
+  const regionChips = [["ru", "Вся Россия"], ["msk", "Москва и область"], ["spb", "Санкт-Петербург"]];
   return (
     <div className="wrap">
-      <PageHead title={raw ? "Поиск сырья" : "Поиск упаковки"} sub={raw ? "Найдём поставщиков, цены и контакты, подскажем названия и аналоги — за 1–2 минуты" : "Банки, флаконы, крышки, мембраны, этикетки, саше, блистеры — по вашим параметрам"} />
+      <PageHead title="Поиск поставщиков" sub="Сырьё, материалы, упаковка — что угодно. Несколько позиций — в одном поиске." />
       {!cfg.search_ready && <div className="banner" style={{ background: "var(--warn-soft)", border: "1px solid rgba(245,181,68,.35)", fontSize: 13.5 }}><Icon name="clock" size={18} style={{ color: "var(--warn)" }} /><span style={{ flex: "1 1 220px" }}>Поиск в интернете подключается — скоро заработает.</span></div>}
       <SrcAccessNote acc={acc} />
-      <form className="card" style={{ display: "flex", flexDirection: "column", gap: 16 }} onSubmit={(e) => { e.preventDefault(); if (canGo) go(); }}>
-        {raw ? (<>
-          <label className="lbl">Что ищете
-            <span className="row" style={{ gap: 8 }}>
-              <input className="inp" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Например, магния бисглицинат" maxLength={200} style={{ flex: 1, minWidth: 0, fontSize: 15 }} />
-            </span>
-          </label>
-          <div className="lbl" role="group" aria-label="Категории">Или выберите из категорий
-            <div className="hscroll">{cfg.categories.map((c) => <Chip key={c.key} on={cat === c.key} onClick={() => setCat(cat === c.key ? "" : c.key)}>{c.emoji} {c.title}</Chip>)}</div>
-            {curCat && <div className="wrapflex" style={{ gap: 8 }}>{curCat.examples.map((x) => <button key={x} type="button" className="btn sm" onClick={() => setQ(x)}>{x}</button>)}</div>}
+      <section className="card tight"><IndustryPick cfg={cfg} prof={prof} cid={cid} onSaved={profL.reload} /></section>
+      <form className="card" style={{ display: "flex", flexDirection: "column", gap: 18 }} onSubmit={(e) => { e.preventDefault(); if (canGo) go(); }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div className="between"><b style={{ fontSize: 15 }}>Что ищете</b>{items.length > 1 && <span className="hint">{items.length} из {cap}</span>}</div>
+          {items.map((it, i) => (
+            <div key={it.key} className={`src-item${act === i ? " on" : ""}`} onFocus={() => setAct(i)} onClick={() => setAct(i)}>
+              <div className="row" style={{ gap: 6 }}>
+                {items.length > 1 && <span className="src-num">{i + 1}</span>}
+                <div className="src-kinds" role="group" aria-label={`Позиция ${i + 1}: что это`}>
+                  {cfg.kinds.map((k) => <button key={k.key} type="button" aria-pressed={it.kind === k.key} className={it.kind === k.key ? "on" : ""} onClick={() => { setItem(i, { kind: k.key }); setAct(i); }}><Icon name={SRC_KIND_ICON[k.key]} size={14} />{SRC_KIND_SHORT[k.key] || k.title}</button>)}
+                </div>
+                {items.length > 1 && <button type="button" className="btn ghost sm" style={{ marginLeft: "auto", minHeight: 32, padding: "0 8px" }} aria-label={`Убрать позицию ${i + 1}`} onClick={(e) => { e.stopPropagation(); const nx = items.filter((_, j) => j !== i); setItems(nx); setAct(Math.min(act, nx.length - 1)); }}><Icon name="x" size={16} /></button>}
+              </div>
+              <div className="wrapflex" style={{ gap: 8 }}>
+                <input className="inp" value={it.query} onChange={(e) => setItem(i, { query: e.target.value })} aria-label={`Позиция ${i + 1}: название`}
+                  placeholder={it.kind === "raw" ? (SRC_PH.raw[prof.industry] || SRC_PH.raw.other) : SRC_PH[it.kind]} maxLength={200} style={{ flex: "3 1 220px", minWidth: 0 }} />
+                <input className="inp" value={it.qty} onChange={(e) => setItem(i, { qty: e.target.value })} aria-label={`Позиция ${i + 1}: сколько`}
+                  placeholder={it.kind === "pack" ? "Сколько: 10 000 шт" : prof.industry === "construction" ? "Сколько: 20 т" : "Сколько: 100 кг"} maxLength={60} style={{ flex: "1 1 130px", minWidth: 0 }} />
+              </div>
+            </div>
+          ))}
+          {cur && cur.kind === "raw" && ind.categories.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <span className="hint">Подсказки{items.length > 1 ? ` для позиции ${act + 1}` : ""} — или просто напишите своё, ищем что угодно</span>
+              <div className="hscroll">{ind.categories.map((c) => <Chip key={c.key} on={cat === c.key} onClick={() => setCat(cat === c.key ? "" : c.key)}>{c.emoji} {c.title}</Chip>)}</div>
+              {curCat && <div className="wrapflex" style={{ gap: 8 }}>{curCat.examples.map((x) => <button key={x} type="button" className="btn sm" onClick={() => setItem(act, { query: x })}>{x}</button>)}</div>}
+            </div>
+          )}
+          {cur && cur.kind === "pack" && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <span className="hint">Тип упаковки — подставим пример, поправьте под себя</span>
+              <div className="hscroll">{packTypes.map((t) => <Chip key={t.key} on={cur.query === t.text} onClick={() => setItem(act, { query: t.text, qty: cur.qty || t.example.qty })}>{t.emoji} {t.title}</Chip>)}</div>
+            </div>
+          )}
+          {cur && cur.kind === "any" && <span className="hint">Пишите своими словами: «Фасовочный автомат для порошков», «Перчатки нитриловые», «Поддоны 1200×800».</span>}
+          {items.length < cap ? (
+            <button type="button" className="btn src-add" onClick={() => { const k = cur && cur.kind === "raw" ? "pack" : "raw"; setItems([...items, newItem(k)]); setAct(items.length); }}><Icon name="plus" size={16} />Добавить позицию<span className="hint" style={{ fontWeight: 600 }}>· упаковку, материал, что угодно</span></button>
+          ) : <span className="hint">В одном поиске — до {cap} {plural(cap, "позиции", "позиций", "позиций")}{acc?.trial ? " на пробном доступе" : ""}.</span>}
+        </div>
+        <div className="lbl" role="group" aria-label="Где искать">Где искать поставщиков
+          <div className="wrapflex" style={{ gap: 8 }}>
+            {regionChips.map(([k, l]) => <Chip key={k} on={reg === k} onClick={() => setRegion(k)}>{l}</Chip>)}
+            {ownCity && <Chip on={reg === "city" && city === ownCity} onClick={() => { setRegion("city"); setCity(ownCity); }}>{ownCity}</Chip>}
+            <Chip on={reg === "city" && city !== ownCity} onClick={() => { setRegion("city"); setCity(""); }}>Другой город</Chip>
           </div>
-          <div className="wrapflex" style={{ gap: 12 }}>
-            <label className="lbl" style={{ flex: "1 1 160px" }}>Сколько нужно<input className="inp" value={qty} onChange={(e) => setQty(e.target.value)} placeholder="100 кг" maxLength={60} /></label>
-            <div className="lbl" style={{ flex: "2 1 260px" }}>Куда поставка<Seg value={region} onChange={setRegion} label="Регион" options={cfg.regions.map((r) => [r.key, r.title])} /></div>
+          {reg === "city" && city !== ownCity && <input className="inp" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Например, Оренбург" maxLength={60} autoFocus />}
+        </div>
+        <div className="lbl" role="group" aria-label="Кто нужен">Кто нужен
+          <div className="wrapflex" style={{ gap: 8 }}>{cfg.suppliers.map((x) => <Chip key={x.key} on={supplier === x.key} onClick={() => setSupplier(x.key)}>{x.title}</Chip>)}</div>
+        </div>
+        <button type="button" className="btn ghost sm" aria-expanded={more} style={{ alignSelf: "flex-start", padding: 0, minHeight: 30, color: "var(--accent-text)" }} onClick={() => setMore(!more)}>
+          <Icon name={more ? "x" : "plus"} size={15} />{more ? "Скрыть требования" : "Документы, класс, комментарий"}{!more && (docs.length > 0 || notes || grade !== "any") ? " · заданы" : ""}
+        </button>
+        {more && (<>
+          {ind.grades && hasRaw && (
+            <div className="lbl" role="group" aria-label="Класс сырья">Класс сырья
+              <div className="wrapflex" style={{ gap: 8 }}>{cfg.grades.map((g) => <Chip key={g.key} on={grade === g.key} onClick={() => setGrade(g.key)}>{g.title}</Chip>)}</div>
+            </div>
+          )}
+          <div className="lbl" role="group" aria-label="Документы">Нужные документы
+            <div className="wrapflex" style={{ gap: 8 }}>{docOpts.map((d) => <Chip key={d.key} on={docs.includes(d.key)} onClick={() => setDocs(docs.includes(d.key) ? docs.filter((x) => x !== d.key) : [...docs, d.key])}>{d.title}</Chip>)}</div>
           </div>
-          <div className="lbl" role="group" aria-label="Класс">Класс сырья
-            <div className="wrapflex" style={{ gap: 8 }}>{cfg.grades.map((g) => <Chip key={g.key} on={grade === g.key} onClick={() => setGrade(g.key)}>{g.title}</Chip>)}</div>
-          </div>
-          <div className="lbl" role="group" aria-label="Документы"><span>Нужные документы <span className="hint" style={{ fontWeight: 600 }}>· необязательно</span></span>
-            <div className="wrapflex" style={{ gap: 8 }}>{cfg.docs.map((d) => <Chip key={d.key} on={docs.includes(d.key)} onClick={() => setDocs(docs.includes(d.key) ? docs.filter((x) => x !== d.key) : [...docs, d.key])}>{d.title}</Chip>)}</div>
-          </div>
-        </>) : (<>
-          <div className="lbl" role="group" aria-label="Тип упаковки">Что нужно
-            <div className="hscroll">{cfg.pack_types.map((t) => <Chip key={t.key} on={ptype === t.key} onClick={() => { setPtype(t.key); setPack({ ...t.example }); }}>{t.emoji} {t.title}</Chip>)}</div>
-            <span className="hint">Выберите тип — подставим пример параметров, поправьте под себя.</span>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(200px, 100%), 1fr))", gap: 12 }}>
-            {cfg.pack_fields.map((f) => <label key={f.key} className="lbl">{f.title}<input className="inp" value={pack[f.key] || ""} onChange={(e) => setPack({ ...pack, [f.key]: e.target.value })} maxLength={80} /></label>)}
-          </div>
-          <label className="lbl"><span>Своими словами <span className="hint" style={{ fontWeight: 600 }}>· если удобнее</span></span><input className="inp" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Банка HDPE 150 мл белая, широкое горло" maxLength={200} /></label>
-          <div className="lbl">Куда поставка<Seg value={region} onChange={setRegion} label="Регион" options={cfg.regions.map((r) => [r.key, r.title])} /></div>
+          <label className="lbl">Комментарий для поиска<input className="inp" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Например: только с НДС, нужна доставка до склада" maxLength={300} /></label>
         </>)}
-        <Btn kind="primary" type="submit" icon="search" loading={busy} disabled={!canGo || !cfg.search_ready || (acc && acc.trial && acc.free_left <= 0) || (acc && acc.expired)} style={{ minHeight: 48, fontSize: 15 }}>Найти поставщиков</Btn>
+        <Btn kind="primary" type="submit" icon="search" loading={busy} disabled={!canGo} style={{ minHeight: 50, fontSize: 15 }}>
+          {ready.length > 1 ? `Найти поставщиков · ${ready.length} ${plural(ready.length, "позиция", "позиции", "позиций")}` : "Найти поставщиков"}
+        </Btn>
+        {ready.length > 1 && <span className="hint" style={{ marginTop: -8, textAlign: "center" }}>Это один поиск: позиции ищутся вместе, результат — по каждой.</span>}
         <SrcTgCard cid={cid} />
       </form>
-      <SrcHistory cid={cid} kind={kind} base={base} />
+      <SrcHistory cid={cid} base={base} />
     </div>
   );
 }
@@ -3807,7 +3965,7 @@ function OfferCard({ o, picked, onPick }) {
 function rfqDraft(s, cfg) {
   const info = s.info || {};
   const p = s.params || {};
-  const reg = (cfg?.regions || []).find((r) => r.key === p.region);
+  const regTitle = srcRegionTitle(p, cfg);
   const gr = (cfg?.grades || []).find((g) => g.key === p.grade);
   const docs = (p.docs || []).map((d) => (cfg?.docs || []).find((x) => x.key === d)?.title || d);
   const what = info.title || s.query;
@@ -3815,7 +3973,8 @@ function rfqDraft(s, cfg) {
   if (s.kind === "pack" && info.specs) rows.push(`Параметры: ${info.specs}.`);
   if (p.qty) rows.push(`Количество: ${p.qty}.`);
   if (docs.length) rows.push(`Документы: ${docs.join(", ")}.`);
-  if (reg && p.region !== "ru") rows.push(`Доставка: ${reg.title}.`);
+  if (regTitle && p.region !== "ru") rows.push(`Доставка: ${regTitle}.`);
+  if (p.notes) rows.push(p.notes.endsWith(".") ? p.notes : `${p.notes}.`);
   rows.push("Просим прислать цену, минимальную партию, срок поставки и документы качества. Если есть образцы — напишите, пожалуйста.");
   return { title: `${what}${p.qty ? `, ${p.qty}` : ""}`.slice(0, 150), body: rows.join("\n") };
 }
@@ -3898,7 +4057,10 @@ function SrcResult({ cid, sid, base }) {
   const [picked, setPicked] = useState([]);
   const [rfq, setRfq] = useState(false);
   const [busy, setBusy] = useState("");
-  const running = s?.status === "running";
+  const [flt, setFlt] = useState([]);
+  const [sort, setSort] = useState("best");
+  useEffect(() => { setPicked([]); }, [sid]);
+  const running = s?.status === "running" || (s?.batch || []).some((b) => b.status === "running");
   useEffect(() => {
     if (!running) return undefined;
     const t = setInterval(async () => { try { setData(await api.get(`/api/c/${cid}/src/search/${sid}`)); } catch (e) { /* */ } }, 2000);
@@ -3908,26 +4070,47 @@ function SrcResult({ cid, sid, base }) {
   if (error && !s) return <div className="wrap"><ErrorBox error={error} onRetry={reload} /></div>;
   const info = s.info || {};
   const offers = s.results || [];
-  const listPage = s.kind === "pack" ? "pack" : "search";
+  const listPage = "search";
   const again = async (query, key) => {
     setBusy(key);
     try {
       const p = s.params || {};
-      const r = await api.post(`/api/c/${cid}/src/search`, { kind: s.kind, query, qty: p.qty, region: p.region, grade: p.grade, docs: p.docs, pack: query === s.query ? p.pack : {} });
+      const r = await api.post(`/api/c/${cid}/src/search`, { items: [{ kind: s.kind, query, qty: p.qty, pack: query === s.query ? p.pack : {} }], region: p.region, city: p.city, supplier: p.supplier, grade: p.grade, docs: p.docs, notes: p.notes });
       setPicked([]); nav(`${B}/result/${r.id}`);
     } catch (e) { toast(e.message, "bad"); }
     setBusy("");
   };
-  const openOffers = offers.filter((o) => !o.locked);
-  const pickedOffers = openOffers.filter((o) => picked.includes(o.domain));
+  const openAll = offers.filter((o) => !o.locked);
+  const lockedOffers = offers.filter((o) => o.locked);
+  const regMatch = (o) => { const p = s.params || {}; const w = (p.region === "city" ? p.city : p.region === "msk" ? "москв" : p.region === "spb" ? "петербург" : "").toLowerCase().slice(0, 5); return w && (o.city || "").toLowerCase().includes(w); };
+  const FLT = [["price", "С ценой", (o) => o.price || o.price_text], ["stock", "В наличии", (o) => o.in_stock === true], ["maker", "Производители", (o) => o.kind === "manufacturer"],
+    ["mail", "Есть почта", (o) => (o.emails || []).length > 0], ...((s.params?.region || "ru") !== "ru" ? [["reg", srcRegionTitle(s.params || {}, cfg) || "Мой регион", regMatch]] : [])];
+  let openOffers = openAll.filter((o) => flt.every((k) => (FLT.find((f) => f[0] === k) || [0, 0, () => true])[2](o)));
+  if (sort === "cheap") openOffers = [...openOffers].sort((a, b) => (a.price || 1e12) - (b.price || 1e12));
+  const pickedOffers = openAll.filter((o) => picked.includes(o.domain));
   const withMail = openOffers.filter((o) => (o.emails || []).length).length;
+  const batch = s.batch && s.batch.length > 1 ? s.batch : null;
   const maxPick = s.access?.rfq_max || 10;
   const lk = s.locked;
   return (
     <div className="wrap">
       <PageHead title={info.title || s.title || s.query} sub={srcParamsLine(s, cfg) || "Поиск поставщиков"}
-        back={<button type="button" className="btn ghost sm" style={{ alignSelf: "flex-start", padding: 0, minHeight: 28 }} onClick={() => nav(`${B}/${listPage}`)}><Icon name="left" size={16} />Новый поиск</button>} />
-      {running && (
+        back={<button type="button" className="btn ghost sm" style={{ alignSelf: "flex-start", padding: 0, minHeight: 28 }} onClick={() => nav(`${B}/${listPage}`)}><Icon name="left" size={16} />К поиску</button>} />
+      {batch && (
+        <nav aria-label="Позиции запроса" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          <span className="hint">Позиции этого поиска</span>
+          <div className="flt-row">
+            {batch.map((b, i) => (
+              <button key={b.id} type="button" className={`chip ${b.id === sid ? "on" : ""}`} aria-current={b.id === sid ? "page" : undefined} onClick={() => nav(`${B}/result/${b.id}`)} style={{ maxWidth: 260 }}>
+                <span className="src-num" style={{ width: 20, height: 20, fontSize: 11 }}>{i + 1}</span>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{b.title}</span>
+                {b.status === "running" ? <span className="spin" style={{ width: 13, height: 13 }} /> : b.status === "error" ? <span style={{ color: "var(--bad)" }}>!</span> : <b>{b.found}</b>}
+              </button>
+            ))}
+          </div>
+        </nav>
+      )}
+      {s.status === "running" && (
         <section className="card" style={{ display: "flex", flexDirection: "column", gap: 12 }} aria-live="polite">
           <div className="row"><span className="spin" /><b style={{ fontSize: 15 }}>{s.stage || "Ищу"}…</b></div>
           {s.total > 0 && <div><div style={{ height: 8, borderRadius: 4, background: "#1B2029", overflow: "hidden" }}><div style={{ width: `${Math.round((s.done / s.total) * 100)}%`, height: "100%", background: "var(--accent)", transition: "width .4s" }} /></div><div className="hint" style={{ marginTop: 6 }}>Прочитано сайтов: {s.done} из {s.total}</div></div>}
@@ -3940,10 +4123,10 @@ function SrcResult({ cid, sid, base }) {
           <Btn icon="refresh" loading={busy === "again"} onClick={() => again(s.query, "again")} style={{ alignSelf: "flex-start" }}>Искать ещё раз</Btn>
         </div>
       )}
-      {s.stage && !running && <div className="hint">{s.stage}</div>}
+      {s.stage && s.status !== "running" && <div className="hint">{s.stage}</div>}
       {(info.name_en || info.synonyms?.length || info.cas || info.specs) && (
         <section className="card" style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          <h2 className="h2">{s.kind === "pack" ? "Позиция" : "Ингредиент"}</h2>
+          <h2 className="h2">{s.kind === "pack" ? "Упаковка" : "О позиции"}</h2>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(220px, 100%), 1fr))", gap: "8px 16px", fontSize: 13.5 }}>
             {[["Международное название", info.name_en], ["CAS", info.cas], ["Категория", info.category], ["Формы", (info.forms || []).join(", ")], ["На что смотреть", info.specs]].filter(([, v]) => v)
               .map(([l, v]) => <div key={l}><div className="hint">{l}</div><div style={{ fontWeight: 600 }}>{v}</div></div>)}
@@ -3972,23 +4155,30 @@ function SrcResult({ cid, sid, base }) {
           ))}
         </section>
       )}
-      {(offers.length > 0 || !running) && s.status !== "error" && (
+      {(offers.length > 0 || s.status !== "running") && s.status !== "error" && (
         <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <div className="between" style={{ flexWrap: "wrap" }}>
-            <h2 className="h2">Поставщики · {offers.length}{running ? " (ищу ещё)" : ""}</h2>
-            {withMail > 0 && !running && <button type="button" className="btn ghost sm" onClick={() => setPicked(picked.length ? [] : openOffers.filter((o) => (o.emails || []).length).slice(0, maxPick).map((o) => o.domain))}>{picked.length ? "Снять выбор" : "Выбрать всех с почтой"}</button>}
+            <h2 className="h2">Поставщики · {offers.length}{s.status === "running" ? " (ищу ещё)" : ""}</h2>
+            {withMail > 0 && s.status !== "running" && <button type="button" className="btn ghost sm" onClick={() => setPicked(picked.length ? [] : openOffers.filter((o) => (o.emails || []).length).slice(0, maxPick).map((o) => o.domain))}>{picked.length ? "Снять выбор" : "Выбрать всех с почтой"}</button>}
           </div>
-          {!running && offers.length === 0 && <div className="card"><Empty icon="search" title="Поставщиков с этой позицией не нашлось" text="Попробуйте другое название — подсказки выше, — или выберите «Вся Россия»." /></div>}
-          {lk && lk.hidden > 0 && !running && (
+          {openAll.length > 1 && (
+            <div className="flt-row" role="group" aria-label="Фильтры">
+              <Chip on={sort === "cheap"} onClick={() => setSort(sort === "cheap" ? "best" : "cheap")}>Сначала дешевле</Chip>
+              {FLT.map(([k, l]) => <Chip key={k} on={flt.includes(k)} onClick={() => setFlt(flt.includes(k) ? flt.filter((x) => x !== k) : [...flt, k])}>{l}</Chip>)}
+            </div>
+          )}
+          {flt.length > 0 && <div className="hint">Показано {openOffers.length} из {openAll.length}{openOffers.length === 0 ? " — снимите часть фильтров" : ""}</div>}
+          {s.status !== "running" && offers.length === 0 && <div className="card"><Empty icon="search" title="Поставщиков с этой позицией не нашлось" text="Попробуйте другое название — подсказки выше, — или выберите «Вся Россия»." /></div>}
+          {lk && lk.hidden > 0 && s.status !== "running" && (
             <div className="banner" style={{ background: "var(--accent-soft)", border: "1px solid rgba(47,99,230,.3)", fontSize: 13.5 }}>
               <Icon name="shield" size={18} style={{ color: "var(--accent-text)" }} />
               <span style={{ flex: "1 1 220px", lineHeight: 1.45 }}>Открыто {lk.visible} из {lk.visible + lk.hidden}. Ещё <b>{lk.hidden} {plural(lk.hidden, "поставщик", "поставщика", "поставщиков")}</b> с названиями, ценами и контактами — по подписке.</span>
               {lk.sales && <a className="btn sm primary" href={lk.sales} target="_blank" rel="noreferrer">Оформить подписку</a>}
             </div>
           )}
-          {offers.map((o, i) => o.locked ? <LockedCard key={`l${i}`} o={o} />
-            : <OfferCard key={o.domain} o={o} picked={picked.includes(o.domain)} onPick={() => setPicked(picked.includes(o.domain) ? picked.filter((x) => x !== o.domain) : [...picked, o.domain].slice(-maxPick))} />)}
-          {!running && offers.length > 0 && <div className="hint">Цены — как на сайтах поставщиков, могут быть устаревшими. Точную цену даст коммерческое предложение: отметьте поставщиков и нажмите «Запросить КП».</div>}
+          {openOffers.map((o) => <OfferCard key={o.domain} o={o} picked={picked.includes(o.domain)} onPick={() => setPicked(picked.includes(o.domain) ? picked.filter((x) => x !== o.domain) : [...picked, o.domain].slice(-maxPick))} />)}
+          {lockedOffers.map((o, i) => <LockedCard key={`l${i}`} o={o} />)}
+          {s.status !== "running" && offers.length > 0 && <div className="hint">Цены — как на сайтах поставщиков, могут быть устаревшими. Точную цену даст коммерческое предложение: отметьте поставщиков и нажмите «Запросить КП».</div>}
         </section>
       )}
       {picked.length > 0 && (
@@ -4236,7 +4426,7 @@ function AdminSrcOverview() {
         <Kpi label="Закупщиков" value={num(k.clients)}><span>пробных {k.trial} · платных {k.paid}</span>{k.new_7 > 0 && <span className="up">+{k.new_7} за неделю</span>}</Kpi>
         <Kpi label="Доход в месяц" value={rub(k.mrr)}><span>по активным подпискам</span></Kpi>
         <Kpi label="Поисков" value={num(k.searches_30)}><span>сегодня {k.searches_today}{k.errors_30 ? ` · с ошибкой ${k.errors_30}` : ""}</span></Kpi>
-        <Kpi label="Расход на Яндекс" value={rub(k.cost_30)}><span>≈0,5 ₽ за запрос, 3 запроса на поиск</span></Kpi>
+        <Kpi label="Расход на Яндекс" value={rub(k.cost_30)}><span>≈0,5 ₽ за запрос, 3 запроса на позицию</span></Kpi>
         <Kpi label="Заявок поставщикам" value={num(k.rfq_sent_30)}><span>ответили {k.rfq_answers_30}</span></Kpi>
       </div>
       <section className="card" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
@@ -4246,7 +4436,7 @@ function AdminSrcOverview() {
           <button key={r.id} type="button" className="list-row" onClick={() => open(r)} style={{ background: "transparent", border: 0, borderTop: "1px solid var(--line3)", color: "var(--text)", textAlign: "left", cursor: "pointer", width: "100%", fontSize: 14 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.title || r.query}</div>
-              <div className="hint">{r.client} · {whenShort(r.created_at)}{r.kind === "pack" ? " · упаковка" : ""}</div>
+              <div className="hint">{r.client} · {whenShort(r.created_at)}{r.kind === "pack" ? " · упаковка" : r.kind === "any" ? " · другое" : ""}</div>
             </div>
             {r.status === "running" ? <span className="hint">ищу…</span> : r.status === "error" ? <Pill color="var(--bad)" bg="var(--bad-soft)">ошибка</Pill> : <b style={{ fontSize: 13 }}>{r.found}</b>}
             <Icon name="right" size={16} style={{ color: "var(--faint)" }} />
@@ -4319,6 +4509,7 @@ function AdminSrcClients() {
           <div className="row hint" style={{ flexWrap: "wrap", gap: "4px 12px", fontSize: 13 }}>
             {c.phone && <a href={`tel:+${c.phone}`}>+{c.phone}</a>}
             {c.tg && <a href={`https://t.me/${c.tg}`} target="_blank" rel="noreferrer">@{c.tg}</a>}
+            {c.industry && <span>{c.industry}</span>}
             {c.city && c.city !== "—" && <span>{c.city}</span>}
             <span>с {dateLabel(c.created_at || "")}</span>
             {c.tg_linked && <span>Telegram подключён</span>}
@@ -4353,8 +4544,10 @@ function AdminSrcSettings() {
   const fields = [["free_searches", "Бесплатных поисков на пробном", "всего, на весь пробный период"],
     ["free_visible", "Открытых поставщиков на пробном", "остальные — под замком «по подписке»"],
     ["free_per_ip_day", "Бесплатных поисков с одного устройства в сутки", "на все аккаунты с этого интернет-адреса — против «много аккаунтов»"],
+    ["free_items", "Позиций в одном поиске на пробном", "сырьё + упаковка + что угодно — считается одним поиском"],
     ["free_rfq", "Заявок КП на пробном", "сколько открытых поставщиков можно выбрать в одну заявку"],
-    ["paid_per_day", "Поисков в день по подписке", "≈1,5 ₽ за поиск на Яндекс"]];
+    ["paid_per_day", "Поисков в день по подписке", "≈1,5 ₽ за каждую позицию на Яндекс"],
+    ["batch_max", "Позиций в одном поиске по подписке", "больше позиций — дольше поиск и выше расход"]];
   return (
     <div className="wrap">
       <PageHead title="Настройки закупок" sub="Пробный доступ, лимиты и подключения" />
@@ -4386,8 +4579,8 @@ function AdminFind({ sub, sid }) {
   if (error && !data) return <div className="wrap"><ErrorBox error={error} onRetry={reload} /></div>;
   const cid = data.cid;
   const base = "admin/find";
-  const tab = sub === "result" ? "search" : (sub || "search");
-  const tabs = [["search", "Сырьё"], ["pack", "Упаковка"], ["rfq", "Заявки"], ["suppliers", "Поставщики"]];
+  const tab = sub === "result" || sub === "pack" ? "search" : (sub || "search");
+  const tabs = [["search", "Поиск"], ["rfq", "Заявки"], ["suppliers", "Поставщики"]];
   let body;
   if (sub === "result") body = <SrcResult cid={cid} sid={sid} base={base} />;
   else if (sub === "pack") body = <SrcSearch cid={cid} kind="pack" base={base} />;
