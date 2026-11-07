@@ -3798,6 +3798,7 @@ function SrcSearch({ cid, kind, base }) {
   const [cat, setCat] = useState("");
   const [region, setRegion] = useState(null);
   const [city, setCity] = useState("");
+  const [cityCustom, setCityCustom] = useState(false);
   const [supplier, setSupplier] = useState("any");
   const [grade, setGrade] = useState("any");
   const [docs, setDocs] = useState([]);
@@ -3884,16 +3885,17 @@ function SrcSearch({ cid, kind, base }) {
           )}
           {cur && cur.kind === "any" && <span className="hint">Пишите своими словами: «Фасовочный автомат для порошков», «Перчатки нитриловые», «Поддоны 1200×800».</span>}
           {items.length < cap ? (
-            <button type="button" className="btn src-add" onClick={() => { const k = cur && cur.kind === "raw" ? "pack" : "raw"; setItems([...items, newItem(k)]); setAct(items.length); }}><Icon name="plus" size={16} />Добавить позицию<span className="hint" style={{ fontWeight: 600 }}>· упаковку, материал, что угодно</span></button>
+            <button type="button" className="btn src-add" onClick={() => { const k = cur && cur.kind === "raw" ? "pack" : "raw"; setItems([...items, newItem(k)]); setAct(items.length); }}><Icon name="plus" size={16} />Добавить позицию — упаковку, материал…</button>
           ) : <span className="hint">В одном поиске — до {cap} {plural(cap, "позиции", "позиций", "позиций")}{acc?.trial ? " на пробном доступе" : ""}.</span>}
         </div>
         <div className="lbl" role="group" aria-label="Где искать">Где искать поставщиков
           <div className="wrapflex" style={{ gap: 8 }}>
-            {regionChips.map(([k, l]) => <Chip key={k} on={reg === k} onClick={() => setRegion(k)}>{l}</Chip>)}
-            {ownCity && <Chip on={reg === "city" && city === ownCity} onClick={() => { setRegion("city"); setCity(ownCity); }}>{ownCity}</Chip>}
-            <Chip on={reg === "city" && city !== ownCity} onClick={() => { setRegion("city"); setCity(""); }}>Другой город</Chip>
+            {regionChips.map(([k, l]) => <Chip key={k} on={reg === k} onClick={() => { setRegion(k); setCityCustom(false); }}>{l}</Chip>)}
+            {ownCity && <Chip on={reg === "city" && !cityCustom} onClick={() => { setRegion("city"); setCity(ownCity); setCityCustom(false); }}>{ownCity}</Chip>}
+            <Chip on={reg === "city" && cityCustom} onClick={() => { setRegion("city"); setCity(""); setCityCustom(true); }}>Другой город</Chip>
           </div>
-          {reg === "city" && city !== ownCity && <input className="inp" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Например, Оренбург" maxLength={60} autoFocus />}
+          {reg === "city" && cityCustom && <input className="inp" aria-label="Город" value={city} onChange={(e) => setCity(e.target.value)} placeholder="Напишите город, например Оренбург" maxLength={60} autoFocus />}
+          {reg === "city" && cityCustom && city.trim().length < 2 && <span className="hint" style={{ fontWeight: 500 }}>Впишите город — или выберите вариант выше.</span>}
         </div>
         <div className="lbl" role="group" aria-label="Кто нужен">Кто нужен
           <div className="wrapflex" style={{ gap: 8 }}>{cfg.suppliers.map((x) => <Chip key={x.key} on={supplier === x.key} onClick={() => setSupplier(x.key)}>{x.title}</Chip>)}</div>
